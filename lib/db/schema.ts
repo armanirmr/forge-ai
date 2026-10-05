@@ -98,3 +98,33 @@ export const workflowEvents = pgTable(
 	},
 	(t) => [index("workflow_events_workflow_idx").on(t.workflowId)],
 );
+
+export const workflows = pgTable("workflows", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	repositoryId: uuid("repository_id")
+		.notNull()
+		.references(() => repositories.id, { onDelete: "cascade" }),
+	requirement: text("requirement").notNull(),
+	status: text("status", {
+		enum: ["analyzing", "analysis_completed", "failed"],
+	}).notNull(),
+	error: text("error"),
+	createdAt: createdAt(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});
+
+export const requirementAnalyses = pgTable("requirement_analyses", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	workflowId: uuid("workflow_id")
+		.notNull()
+		.references(() => workflows.id, { onDelete: "cascade" }),
+	aiRunId: uuid("ai_run_id").references(() => aiRuns.id),
+	// Stored only after schema validation; re-validated on read.
+	result: jsonb("result").$type<Record<string, unknown>>().notNull(),
+	retrievedContext: jsonb("retrieved_context")
+		.$type<Record<string, unknown>>()
+		.notNull(),
+	createdAt: createdAt(),
+});
