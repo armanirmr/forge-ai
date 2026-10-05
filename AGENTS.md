@@ -1,9 +1,30 @@
-<!-- BEGIN:nextjs-agent-rules -->
+# AGENTS.md
 
-# This is NOT the Next.js you know
+## Never
+- Fabricate test results.
+- Claim code works without validation.
+- Invent repository files.
+- Modify unrelated files.
+- Expose secrets to AI providers.
+- Automatically merge pull requests.
+- Bypass human approval.
+- Silently overwrite user changes.
+- Use unvalidated LLM output as application state.
+- Execute arbitrary shell commands without sandboxing.
+- Hide AI failures.
+- Fabricate productivity metrics.
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+## Always
+- Validate AI output with schemas.
+- Preserve existing architecture.
+- Inspect existing code before modifying it.
+- Minimize file changes.
+- Generate tests for changes.
+- Run validation after modifications.
+- Explain implementation decisions.
+- Surface uncertainty.
+- Record AI workflow events.
+- Require human approval before shipping.
 
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+## Validation commands
+npm run typecheck · npm run lint · npm test
