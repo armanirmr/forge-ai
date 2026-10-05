@@ -16,6 +16,7 @@ export class OpenAICompatibleProvider implements AIProvider {
 		private apiKey: string,
 		readonly model: string,
 		private baseUrl: string,
+		private strict = false,
 	) {}
 
 	async generateStructured(
@@ -38,7 +39,11 @@ export class OpenAICompatibleProvider implements AIProvider {
 					],
 					response_format: {
 						type: "json_schema",
-						json_schema: { name: req.schemaName, schema: req.jsonSchema },
+						json_schema: {
+							name: req.schemaName,
+							strict: this.strict,
+							schema: req.jsonSchema,
+						},
 					},
 					max_completion_tokens: 8000,
 				}),

@@ -106,7 +106,13 @@ export const workflows = pgTable("workflows", {
 		.references(() => repositories.id, { onDelete: "cascade" }),
 	requirement: text("requirement").notNull(),
 	status: text("status", {
-		enum: ["analyzing", "analysis_completed", "failed"],
+		enum: [
+			"analyzing",
+			"analysis_completed",
+			"planning",
+			"plan_completed",
+			"failed",
+		],
 	}).notNull(),
 	error: text("error"),
 	createdAt: createdAt(),
@@ -126,5 +132,17 @@ export const requirementAnalyses = pgTable("requirement_analyses", {
 	retrievedContext: jsonb("retrieved_context")
 		.$type<Record<string, unknown>>()
 		.notNull(),
+	createdAt: createdAt(),
+});
+
+export const implementationPlans = pgTable("implementation_plans", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	workflowId: uuid("workflow_id")
+		.notNull()
+		.unique()
+		.references(() => workflows.id, { onDelete: "cascade" }),
+	aiRunId: uuid("ai_run_id").references(() => aiRuns.id),
+	// Stored only after schema and semantic validation; re-validated on read.
+	result: jsonb("result").$type<Record<string, unknown>>().notNull(),
 	createdAt: createdAt(),
 });

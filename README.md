@@ -1,36 +1,57 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ForgeAI
 
-## Getting Started
+An AI-assisted software delivery tool: it turns a requirement into a validated analysis and a draft implementation plan, grounded in a connected GitHub repository. Every AI output is schema-validated before it is stored.
 
-First, run the development server:
+## Status
+
+Milestone 2 complete: GitHub login, repository import, requirement analysis with keyword retrieval, and draft implementation plans.
+
+Not implemented: embeddings and semantic search, code generation, test execution, review, human approval gates, PR creation.
+
+## Stack
+
+Next.js (App Router), TypeScript, Tailwind, shadcn/ui, PostgreSQL with Drizzle, Auth.js (GitHub), Zod, Vitest.
+
+## Setup
+
+1. Install dependencies and start Postgres:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+   npm install
+   docker compose up -d
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+2. Copy the environment template and fill it in:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+   cp .env.example .env.local
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and the AI settings below. 3. Apply migrations and run:
 
-## Learn More
+```bash
+   npm run db:migrate
+   npm run dev
+```
 
-To learn more about Next.js, take a look at the following resources:
+## AI provider
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Set in `.env.local`:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Variable           | Purpose                                                    |
+| ------------------ | ---------------------------------------------------------- |
+| `AI_PROVIDER`      | `gemini` or `groq`                                         |
+| `AI_API_KEY`       | Provider API key                                           |
+| `AI_MODEL`         | Model id, for example `openai/gpt-oss-20b` on Groq         |
+| `AI_BASE_URL`      | Optional, overrides the Groq endpoint                      |
+| `AI_STRICT_SCHEMA` | Set to `false` to disable strict structured output on Groq |
 
-## Deploy on Vercel
+Repository snippets are redacted for secrets before they are sent to the provider. Free tiers may use prompts to improve the provider's products, so use public repositories only.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Scripts
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`npm run dev`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run db:generate`, `npm run db:migrate`, `npm run db:studio`.
+
+## Design notes
+
+See `docs/decisions/`.

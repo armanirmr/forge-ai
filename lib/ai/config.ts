@@ -19,6 +19,7 @@ export function getProvider(): AIProvider {
 				apiKey,
 				model,
 				process.env.AI_BASE_URL ?? "https://api.groq.com/openai/v1",
+				process.env.AI_STRICT_SCHEMA !== "false",
 			);
 		default:
 			throw new Error(`Unsupported AI_PROVIDER: ${name}`);

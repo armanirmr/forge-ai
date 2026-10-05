@@ -1,0 +1,127 @@
+import { describe, it, expect } from "vitest";
+import { implementationPlanner } from "./implementation-planner";
+import type {
+	ImplementationPlan,
+	ImplementationPlanInput,
+} from "@/ai/schemas/implementation-plan";
+
+const input: ImplementationPlanInput = {
+	requirement: "Add CSV export to the analytics dashboard",
+	repository: {
+		owner: "o",
+		name: "r",
+		defaultBranch: "main",
+		language: "typescript",
+	},
+	fileTree: ["src/api/reports.ts", "src/reports/service.ts"],
+	fileTreeTotal: 2,
+	snippets: [],
+	analysis: {
+		summary: "s",
+		functionalRequirements: [
+			{ id: "REQ-001", description: "d", priority: "high", basis: "explicit" },
+		],
+		nonFunctionalRequirements: [],
+		constraints: [],
+		assumptions: [],
+		risks: [],
+		acceptanceCriteria: ["a"],
+		affectedFiles: [],
+		openQuestions: [],
+	},
+};
+
+const task = (over: Partial<ImplementationPlan["tasks"][number]> = {}) => ({
+	id: "TASK-001",
+	title: "t",
+	description: "d",
+	requirementIds: ["REQ-001"],
+	dependencies: [],
+	modifiesFiles: ["src/api/reports.ts"],
+	createsFiles: [],
+	acceptanceCriteria: ["c"],
+	risk: "low" as const,
+	estimatedComplexity: "small" as const,
+	...over,
+});
+
+const plan = (tasks: ImplementationPlan["tasks"]): ImplementationPlan => ({
+	approach: "a",
+	architectureNotes: [],
+	tasks,
+	risks: [],
+	openQuestions: [],
+});
+
+const check = (tasks: ImplementationPlan["tasks"]) =>
+	implementationPlanner.semanticChecks!(input, plan(tasks));
+
+describe("implementationPlanner.semanticChecks", () => {
+	it("accepts a consistent plan", () => {
+		const tasks = [
+			task(),
+			task({
+				id: "TASK-002",
+				dependencies: ["TASK-001"],
+				createsFiles: ["src/reports/csv.ts"],
+			}),
+		];
+		expect(check(tasks)).toEqual([]);
+	});
+
+	it("rejects unknown dependencies", () => {
+		expect(check([task({ dependencies: ["TASK-009"] })])[0]).toContain(
+			"unknown task TASK-009",
+		);
+	});
+
+	it("rejects dependencies that are not listed earlier", () => {
+		const tasks = [
+			task({ dependencies: ["TASK-002"] }),
+			task({ id: "TASK-002" }),
+		];
+		expect(check(tasks)[0]).toContain("not listed before it");
+	});
+
+	it("rejects invented paths in modifiesFiles", () => {
+		expect(check([task({ modifiesFiles: ["src/made/up.ts"] })])[0]).toContain(
+			"src/made/up.ts",
+		);
+	});
+
+	it("rejects createsFiles that already exist", () => {
+		expect(
+			check([task({ createsFiles: ["src/reports/service.ts"] })])[0],
+		).toContain("already exists");
+	});
+
+	it("rejects unknown requirement ids", () => {
+		const problems = check([task({ requirementIds: ["REQ-009"] })]);
+		expect(problems.join(";")).toContain("unknown requirement REQ-009");
+	});
+
+	it("rejects plans that leave a requirement uncovered", () => {
+		const twoReqs = {
+			...input,
+			analysis: {
+				...input.analysis,
+				functionalRequirements: [
+					...input.analysis.functionalRequirements,
+					{
+						id: "REQ-002",
+						description: "d2",
+						priority: "low" as const,
+						basis: "inferred" as const,
+					},
+				],
+			},
+		};
+		const problems = implementationPlanner.semanticChecks!(
+			twoReqs,
+			plan([task()]),
+		);
+		expect(problems).toContain(
+			"Requirement REQ-002 is not covered by any task",
+		);
+	});
+});
