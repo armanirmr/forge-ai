@@ -1,22 +1,21 @@
 import { eq } from "drizzle-orm";
-import { CodeChange, CodeChangeSchema } from "@/ai/schemas/code-generation";
+import { CodeChangeSchema, type CodeChange } from "@/ai/schemas/code-generation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { codeChanges } from "@/lib/db/schema";
+import { trimEditForDisplay } from "@/lib/patch/trim-edit";
 import { generateCodeAction } from "./actions";
 
-function Lines({ text, sign }: { text: string; sign: "+" | "-" }) {
+function Lines({ lines, sign }: { lines: string[]; sign: "+" | "-" }) {
+  if (lines.length === 0) return null;
   const tone =
     sign === "+"
       ? "bg-green-500/10 text-green-700 dark:text-green-400"
       : "bg-red-500/10 text-red-700 dark:text-red-400";
   return (
     <pre className={`overflow-x-auto px-3 py-1 font-mono text-xs ${tone}`}>
-      {text
-        .split("\n")
-        .map((line) => `${sign} ${line}`)
-        .join("\n")}
+      {lines.map((line) => `${sign} ${line}`).join("\n")}
     </pre>
   );
 }
@@ -66,9 +65,9 @@ export async function ChangesSection({
             <input type="hidden" name="workflowId" value={workflowId} />
             <Button type="submit">Generate code</Button>
             <p className="text-xs text-muted-foreground">
-              Sends the approved plan and the full text of the files it modifies (plus a few
-              sibling files for conventions) to the configured AI provider. Nothing is written to
-              the repository.
+              Sends the approved plan, the full text of the files it modifies and the files they
+              import (secret-redacted) to the configured AI provider. Nothing is written to the
+              repository.
             </p>
           </form>
         </>
@@ -91,8 +90,8 @@ export async function ChangesSection({
         <div className="space-y-5">
           <p className="text-sm">{change.data.summary}</p>
           <p className="text-xs text-muted-foreground">
-            Every edit was checked to apply cleanly to the files as indexed when generated. The
-            code has not been run, tested or reviewed.
+            Every edit was checked to apply cleanly to the files as indexed when generated. Only
+            changed lines are shown. The code has not been run, tested or reviewed.
           </p>
 
           {[...byPath.entries()].map(([path, edits]) => (
@@ -101,13 +100,16 @@ export async function ChangesSection({
                 {path}
                 {edits.every((e) => e.search === "") && " (new file)"}
               </p>
-              {edits.map((e, i) => (
-                <div key={i} className="border-b last:border-0">
-                  <p className="px-3 pt-2 font-mono text-xs text-muted-foreground">{e.taskId}</p>
-                  {e.search !== "" && <Lines text={e.search} sign="-" />}
-                  <Lines text={e.replace} sign="+" />
-                </div>
-              ))}
+              {edits.map((e, i) => {
+                const { removed, added } = trimEditForDisplay(e.search, e.replace);
+                return (
+                  <div key={i} className="border-b last:border-0">
+                    <p className="px-3 pt-2 font-mono text-xs text-muted-foreground">{e.taskId}</p>
+                    <Lines lines={removed} sign="-" />
+                    <Lines lines={added} sign="+" />
+                  </div>
+                );
+              })}
             </div>
           ))}
 

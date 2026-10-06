@@ -16,9 +16,11 @@ import {
 	workflows,
 } from "@/lib/db/schema";
 import { redactSecrets } from "@/lib/security/redact";
+import { collectImportClosure } from "@/lib/repository/local-imports";
 
 const MAX_CONTEXT_CHARS = 60_000;
 const MAX_REFERENCE_PER_DIR = 3;
+const MAX_REFERENCE_FILES = 12;
 
 async function logEvent(
 	workflowId: string,
@@ -152,28 +154,48 @@ export async function startCodeGeneration(
 			);
 		}
 
-		const referencePaths = pickReferencePaths(
+		const byPath = new Map<string, string>();
+		const load = async (paths: string[]) => {
+			const toFetch = paths.filter((p) => !byPath.has(p));
+			if (toFetch.length > 0) {
+				const rows = await db
+					.select({
+						path: repositoryFiles.path,
+						content: repositoryFiles.content,
+					})
+					.from(repositoryFiles)
+					.where(
+						and(
+							eq(repositoryFiles.repositoryId, claimed.repositoryId),
+							inArray(repositoryFiles.path, toFetch),
+						),
+					);
+				for (const r of rows) byPath.set(r.path, r.content);
+			}
+			const out = new Map<string, string>();
+			for (const p of paths) {
+				const content = byPath.get(p);
+				if (content !== undefined) out.set(p, content);
+			}
+			return out;
+		};
+
+		await load(modifyPaths);
+		const roots = modifyPaths.map((path) => ({
+			path,
+			content: byPath.get(path) ?? "",
+		}));
+		// Types and implementations the edited files depend on come first, then siblings of new files.
+		const imported = await collectImportClosure(roots, tree, load);
+		const siblings = pickReferencePaths(
 			createPaths,
 			treePaths,
 			new Set(modifyPaths),
 		);
-		const wanted = [...modifyPaths, ...referencePaths];
-		const rows =
-			wanted.length === 0
-				? []
-				: await db
-						.select({
-							path: repositoryFiles.path,
-							content: repositoryFiles.content,
-						})
-						.from(repositoryFiles)
-						.where(
-							and(
-								eq(repositoryFiles.repositoryId, claimed.repositoryId),
-								inArray(repositoryFiles.path, wanted),
-							),
-						);
-		const byPath = new Map(rows.map((r) => [r.path, r.content]));
+		const referencePaths = [...new Set([...imported, ...siblings])]
+			.filter((p) => !modifyPaths.includes(p))
+			.slice(0, MAX_REFERENCE_FILES);
+		await load(referencePaths);
 
 		// Files we will edit are sent verbatim, so refuse to send any that look like they hold a secret.
 		let used = 0;
@@ -200,6 +222,11 @@ export async function startCodeGeneration(
 			used += content.length;
 			referenceFiles.push({ path, content });
 		}
+
+		await logEvent(workflowId, "CODE_CONTEXT_SELECTED", "system", {
+			editable: editableFiles.map((f) => f.path),
+			reference: referenceFiles.map((f) => f.path),
+		});
 
 		const provider = getProvider();
 		const result = await runAgent(

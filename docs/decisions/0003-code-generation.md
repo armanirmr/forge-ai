@@ -8,6 +8,8 @@
 - Edits are scoped per task: only that task's `modifiesFiles` and `createsFiles` may be touched.
 - Output that looks like a secret is rejected, and files to be edited are never sent if they look like they hold one.
 - Nothing is written to any repository in this milestone.
+- Reference files are chosen deterministically: local imports of the editable files (two levels, relative imports only, JS/TS), then siblings of new files. This supplies the types and implementations the generated code must conform to.
+- The viewer shows only changed lines. Stored edits are unchanged.
 
 ## Known limitations (Milestone 3)
 
@@ -16,3 +18,4 @@
 - Generated code is not executed or tested yet; that is the testing phase.
 - No unified diff or `git apply` output yet; the viewer shows removed and added text per edit.
 - Plan approval has no reject or request-changes path yet.
+- Import resolution handles relative JS/TS specifiers only; path aliases and other languages are not followed.

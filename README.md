@@ -4,9 +4,7 @@ An AI-assisted software delivery tool: it turns a requirement into a validated a
 
 ## Status
 
-Milestone 2 complete: GitHub login, repository import, requirement analysis with keyword retrieval, and draft implementation plans.
-
-Not implemented: embeddings and semantic search, code generation, test execution, review, human approval gates, PR creation.
+Milestone 3.1 complete: requirement analysis, draft plans, plan approval, and validated code edits with import-aware context (not applied). Not implemented: embeddings, code verification, debugging, review, approval, pull requests, analytics.
 
 ## Stack
 
