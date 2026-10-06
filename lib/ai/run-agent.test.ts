@@ -107,5 +107,6 @@ describe("runAgent", () => {
 		).toBe(true);
 		expect(isTransientProviderError("RESOURCE_EXHAUSTED")).toBe(true);
 		expect(isTransientProviderError("model not found")).toBe(false);
+		expect(isTransientProviderError('{"error":{"code":"json_validate_failed"}}')).toBe(true);
 	});
 });

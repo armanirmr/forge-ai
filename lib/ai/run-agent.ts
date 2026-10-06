@@ -36,7 +36,7 @@ function toJsonSchema(schema: z.ZodType): Record<string, unknown> {
 
 /** Overload / rate-limit style errors worth a short, bounded retry. */
 export function isTransientProviderError(message: string): boolean {
-	return /\b(503|429)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand/i.test(
+	return /\b(503|429)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand|json_validate_failed/i.test(
 		message,
 	);
 }

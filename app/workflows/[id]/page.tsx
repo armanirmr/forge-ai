@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/schema";
 import { RetrievedContextMetaSchema } from "@/lib/workflows/types";
 import { PlanSection } from "./plan-section";
+import { ChangesSection } from "./changes-section";
 
 function List({ title, items }: { title: string; items: string[] }) {
   return (
@@ -134,6 +135,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
       )}
 
       <PlanSection workflowId={wf.id} status={wf.status} error={wf.error} />
+      <ChangesSection workflowId={wf.id} status={wf.status} error={wf.error} />
 
       {context?.success && (
         <section className="space-y-2">

@@ -45,7 +45,7 @@ export class OpenAICompatibleProvider implements AIProvider {
 							schema: req.jsonSchema,
 						},
 					},
-					max_completion_tokens: 8000,
+					max_completion_tokens: 16000,
 				}),
 			},
 		);

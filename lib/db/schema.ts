@@ -111,6 +111,9 @@ export const workflows = pgTable("workflows", {
 			"analysis_completed",
 			"planning",
 			"plan_completed",
+			"plan_approved",
+			"generating",
+			"changes_generated",
 			"failed",
 		],
 	}).notNull(),
@@ -143,6 +146,18 @@ export const implementationPlans = pgTable("implementation_plans", {
 		.references(() => workflows.id, { onDelete: "cascade" }),
 	aiRunId: uuid("ai_run_id").references(() => aiRuns.id),
 	// Stored only after schema and semantic validation; re-validated on read.
+	result: jsonb("result").$type<Record<string, unknown>>().notNull(),
+	createdAt: createdAt(),
+});
+
+export const codeChanges = pgTable("code_changes", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	workflowId: uuid("workflow_id")
+		.notNull()
+		.unique()
+		.references(() => workflows.id, { onDelete: "cascade" }),
+	aiRunId: uuid("ai_run_id").references(() => aiRuns.id),
+	// Stored only after schema and patch validation; re-validated on read.
 	result: jsonb("result").$type<Record<string, unknown>>().notNull(),
 	createdAt: createdAt(),
 });

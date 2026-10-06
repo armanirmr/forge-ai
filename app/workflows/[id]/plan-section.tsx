@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { implementationPlans } from "@/lib/db/schema";
-import { generatePlanAction } from "./actions";
+import { approvePlanAction, generatePlanAction } from "./actions";
 
 function Items({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
@@ -42,7 +42,13 @@ export async function PlanSection({
     <section className="space-y-4">
       <div className="flex items-center gap-3">
         <h2 className="text-lg font-medium">Implementation plan</h2>
-        {plan?.success && <Badge variant="outline">Draft, not approved</Badge>}
+        {plan?.success && (
+          <Badge variant="outline">
+            {["plan_approved", "generating", "changes_generated"].includes(status)
+              ? "Approved"
+              : "Draft, not approved"}
+          </Badge>
+        )}
         {status === "planning" && <Badge variant="secondary">planning</Badge>}
       </div>
 
@@ -113,7 +119,15 @@ export async function PlanSection({
           </ol>
 
           <Items title="Plan risks" items={plan.data.risks} />
-          <Items title="Plan open questions" items={plan.data.openQuestions} />
+          {status === "plan_completed" && (
+            <form action={approvePlanAction} className="space-y-2">
+              <input type="hidden" name="workflowId" value={workflowId} />
+              <Button type="submit">Approve plan</Button>
+              <p className="text-xs text-muted-foreground">
+                Records your approval and unlocks code generation. Nothing is changed in the repository.
+              </p>
+            </form>
+          )}
         </div>
       )}
     </section>
