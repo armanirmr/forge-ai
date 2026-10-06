@@ -7,6 +7,8 @@ import {
 export const ImplementationPlanInputSchema =
 	RequirementAnalysisInputSchema.extend({
 		analysis: RequirementAnalysisSchema,
+		/** Plain-language guidance from the human reviewer on a previous draft. */
+		feedback: z.string().max(8000).optional(),
 	});
 export type ImplementationPlanInput = z.infer<
 	typeof ImplementationPlanInputSchema

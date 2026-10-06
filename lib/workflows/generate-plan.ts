@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { implementationPlanner } from "@/ai/agents/implementation-planner";
 import { RequirementAnalysisSchema } from "@/ai/schemas/requirement-analysis";
 import { getProvider } from "@/lib/ai/config";
@@ -37,6 +37,24 @@ async function revertToAnalysis(workflowId: string, message: string) {
 	await logEvent(workflowId, "PLAN_FAILED", "system", { error: message });
 }
 
+/** All reviewer feedback given on this workflow so far, oldest first. */
+async function feedbackHistory(workflowId: string): Promise<string[]> {
+	const rows = await db
+		.select({ metadata: workflowEvents.metadata })
+		.from(workflowEvents)
+		.where(
+			and(
+				eq(workflowEvents.workflowId, workflowId),
+				eq(workflowEvents.type, "PLAN_CHANGES_REQUESTED"),
+			),
+		)
+		.orderBy(asc(workflowEvents.createdAt));
+	return rows
+		.map((r) => (r.metadata as { feedback?: unknown } | null)?.feedback)
+		.filter((f): f is string => typeof f === "string")
+		.slice(-4);
+}
+
 /**
  * Generates the implementation plan for a workflow whose analysis is complete.
  * Never throws for AI or configuration failures: they are recorded on the workflow.
@@ -44,7 +62,12 @@ async function revertToAnalysis(workflowId: string, message: string) {
 export async function startPlanning(
 	workflowId: string,
 	userId: string,
+	feedback?: string,
 ): Promise<void> {
+	const history = await feedbackHistory(workflowId);
+	const effectiveFeedback = history.length
+		? history.map((f, i) => `${i + 1}. ${f}`).join("\n")
+		: feedback;
 	// Atomic claim: only one request can move analysis_completed -> planning.
 	const [claimed] = await db
 		.update(workflows)
@@ -61,7 +84,9 @@ export async function startPlanning(
 		});
 	if (!claimed) return;
 
-	await logEvent(workflowId, "PLAN_REQUESTED", `user:${userId}`);
+	await logEvent(workflowId, "PLAN_REQUESTED", `user:${userId}`, {
+		withFeedback: Boolean(effectiveFeedback),
+	});
 
 	try {
 		const [repo] = await db
@@ -97,6 +122,8 @@ export async function startPlanning(
 		});
 		const req = redactSecrets(claimed.requirement);
 		redactions += req.redactions;
+		const fb = effectiveFeedback ? redactSecrets(effectiveFeedback) : null;
+		if (fb) redactions += fb.redactions;
 
 		const provider = getProvider();
 		const result = await runAgent(
@@ -113,6 +140,7 @@ export async function startPlanning(
 				fileTreeTotal: ctx.fileTreeTotal,
 				snippets,
 				analysis: analysis.data,
+				feedback: fb?.text,
 			},
 			provider,
 		);
@@ -166,4 +194,61 @@ export async function startPlanning(
 			err instanceof Error ? err.message : String(err),
 		);
 	}
+}
+
+export const MAX_FEEDBACK_CHARS = 2000;
+
+/**
+ * Withdraws any approval and discards the current draft so a new plan can be generated.
+ * The discarded plan is kept in the PLAN_CHANGES_REQUESTED event, so nothing is lost.
+ * Returns false if nothing changed: empty or oversized feedback, or a workflow that is
+ * not in plan_completed / plan_approved (for example, code generation already started).
+ */
+export async function requestPlanChanges(
+	workflowId: string,
+	userId: string,
+	feedback: string,
+): Promise<boolean> {
+	if (feedback.length === 0 || feedback.length > MAX_FEEDBACK_CHARS)
+		return false;
+	const safeFeedback = redactSecrets(feedback).text;
+
+	return db.transaction(async (tx) => {
+		const [before] = await tx
+			.select({ status: workflows.status })
+			.from(workflows)
+			.where(eq(workflows.id, workflowId));
+
+		const [reset] = await tx
+			.update(workflows)
+			.set({ status: "analysis_completed", error: null, updatedAt: new Date() })
+			.where(
+				and(
+					eq(workflows.id, workflowId),
+					inArray(workflows.status, ["plan_completed", "plan_approved"]),
+				),
+			)
+			.returning({ id: workflows.id });
+		if (!reset) return false;
+
+		const [plan] = await tx
+			.select()
+			.from(implementationPlans)
+			.where(eq(implementationPlans.workflowId, workflowId));
+
+		await tx.insert(workflowEvents).values({
+			workflowId,
+			type: "PLAN_CHANGES_REQUESTED",
+			actor: `user:${userId}`,
+			metadata: {
+				feedback: safeFeedback,
+				wasApproved: before?.status === "plan_approved",
+				previousPlan: plan?.result ?? null,
+			},
+		});
+		await tx
+			.delete(implementationPlans)
+			.where(eq(implementationPlans.workflowId, workflowId));
+		return true;
+	});
 }

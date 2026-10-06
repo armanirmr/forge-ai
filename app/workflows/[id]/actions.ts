@@ -7,7 +7,10 @@ import {
 	approvePlan,
 	startCodeGeneration,
 } from "@/lib/workflows/generate-code";
-import { startPlanning } from "@/lib/workflows/generate-plan";
+import {
+	requestPlanChanges,
+	startPlanning,
+} from "@/lib/workflows/generate-plan";
 
 async function requestContext(formData: FormData) {
 	const session = await auth();
@@ -37,5 +40,22 @@ export async function approvePlanAction(formData: FormData) {
 export async function generateCodeAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
 	await startCodeGeneration(workflowId, userId);
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function requestPlanChangesAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	const feedback = z
+		.string()
+		.trim()
+		.min(1)
+		.max(2000)
+		.safeParse(formData.get("feedback"));
+	if (
+		feedback.success &&
+		(await requestPlanChanges(workflowId, userId, feedback.data))
+	) {
+		await startPlanning(workflowId, userId, feedback.data);
+	}
 	redirect(`/workflows/${workflowId}`);
 }

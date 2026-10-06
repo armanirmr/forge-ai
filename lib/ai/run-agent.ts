@@ -43,13 +43,30 @@ export function isTransientProviderError(message: string): boolean {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+/** Reads "try again in 5.73s" or "224.99ms" from a rate-limit message. Null if absent. */
+export function parseRetryAfterMs(message: string): number | null {
+	const m = /try again in\s+([\d.]+)\s*(ms|s)\b/i.exec(message);
+	if (!m) return null;
+	const value = Number(m[1]);
+	if (!Number.isFinite(value)) return null;
+	return Math.round(m[2].toLowerCase() === "ms" ? value : value * 1000);
+}
+
+const MAX_RATE_LIMIT_WAIT_MS = 40_000;
+
+function transientWaitMs(message: string, fallbackMs: number): number {
+	const hinted = parseRetryAfterMs(message);
+	if (hinted === null) return fallbackMs;
+	return Math.min(Math.max(hinted + 500, fallbackMs), MAX_RATE_LIMIT_WAIT_MS);
+}
+
 export async function runAgent<I, O>(
 	def: AgentDefinition<I, O>,
 	rawInput: unknown,
 	provider: AIProvider,
 	{
 		maxAttempts = 2,
-		transientRetryDelaysMs = [2000, 5000],
+		transientRetryDelaysMs = [2000, 5000, 10000, 20000],
 	}: RunAgentOptions = {},
 ): Promise<AgentResult<O>> {
 	const parsedInput = def.inputSchema.safeParse(rawInput);
@@ -95,7 +112,9 @@ export async function runAgent<I, O>(
 				isTransientProviderError(message) &&
 				transientRetries < transientRetryDelaysMs.length
 			) {
-				await sleep(transientRetryDelaysMs[transientRetries]);
+				await sleep(
+					transientWaitMs(message, transientRetryDelaysMs[transientRetries]),
+				);
 				transientRetries += 1;
 				continue;
 			}

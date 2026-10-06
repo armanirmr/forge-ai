@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
 import { implementationPlans } from "@/lib/db/schema";
-import { approvePlanAction, generatePlanAction } from "./actions";
+import { approvePlanAction, generatePlanAction, requestPlanChangesAction } from "./actions";
 
 function Items({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null;
@@ -119,12 +119,37 @@ export async function PlanSection({
           </ol>
 
           <Items title="Plan risks" items={plan.data.risks} />
+          <Items title="Plan open questions" items={plan.data.openQuestions} />
           {status === "plan_completed" && (
             <form action={approvePlanAction} className="space-y-2">
               <input type="hidden" name="workflowId" value={workflowId} />
               <Button type="submit">Approve plan</Button>
               <p className="text-xs text-muted-foreground">
                 Records your approval and unlocks code generation. Nothing is changed in the repository.
+              </p>
+            </form>
+          )}
+          {(status === "plan_completed" || status === "plan_approved") && (
+            <form action={requestPlanChangesAction} className="space-y-2 rounded border p-4">
+              <input type="hidden" name="workflowId" value={workflowId} />
+              <label htmlFor="feedback" className="text-sm font-medium">
+                Request changes
+              </label>
+              <textarea
+                id="feedback"
+                name="feedback"
+                required
+                maxLength={2000}
+                rows={3}
+                placeholder="In plain words, what is wrong or missing? For example: admins should still be filtered by region."
+                className="w-full rounded border bg-background p-2 text-sm"
+              />
+              <Button type="submit" variant="outline">
+                Request changes and regenerate
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                Discards this draft (it stays in the timeline), withdraws any approval and generates a new
+                plan using your feedback. Not available once code has been generated.
               </p>
             </form>
           )}
