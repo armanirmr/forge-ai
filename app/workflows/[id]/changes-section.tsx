@@ -91,7 +91,7 @@ export async function ChangesSection({
           <p className="text-sm">{change.data.summary}</p>
           <p className="text-xs text-muted-foreground">
             Every edit was checked to apply cleanly to the files as indexed when generated. Only
-            changed lines are shown. The code has not been run, tested or reviewed.
+            changed lines are shown. It has not been reviewed. Use Verification below to run the repository&apos;s own scripts against it.
           </p>
 
           {[...byPath.entries()].map(([path, edits]) => (

@@ -11,6 +11,7 @@ import {
 	requestPlanChanges,
 	startPlanning,
 } from "@/lib/workflows/generate-plan";
+import { startVerification } from "@/lib/workflows/verify-changes";
 
 async function requestContext(formData: FormData) {
 	const session = await auth();
@@ -57,5 +58,11 @@ export async function requestPlanChangesAction(formData: FormData) {
 	) {
 		await startPlanning(workflowId, userId, feedback.data);
 	}
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function verifyChangesAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	await startVerification(workflowId, userId);
 	redirect(`/workflows/${workflowId}`);
 }

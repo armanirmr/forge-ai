@@ -115,6 +115,7 @@ export const workflows = pgTable("workflows", {
 			"generating",
 			"changes_generated",
 			"failed",
+			"verifying",
 		],
 	}).notNull(),
 	error: text("error"),
@@ -161,3 +162,21 @@ export const codeChanges = pgTable("code_changes", {
 	result: jsonb("result").$type<Record<string, unknown>>().notNull(),
 	createdAt: createdAt(),
 });
+
+export const verificationRuns = pgTable(
+	"verification_runs",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workflowId: uuid("workflow_id")
+			.notNull()
+			.references(() => workflows.id, { onDelete: "cascade" }),
+		status: text("status", {
+			enum: ["passed", "failed", "error", "not_executed"],
+		}).notNull(),
+		// Written by our code from real command output; re-validated on read.
+		result: jsonb("result").$type<Record<string, unknown>>().notNull(),
+		durationMs: integer("duration_ms").notNull(),
+		createdAt: createdAt(),
+	},
+	(t) => [index("verification_runs_workflow_idx").on(t.workflowId)],
+);
