@@ -13,6 +13,7 @@ import {
 } from "@/lib/workflows/generate-plan";
 import { startVerification } from "@/lib/workflows/verify-changes";
 import { startRepair } from "@/lib/workflows/repair-changes";
+import { approveChanges, rejectChanges } from "@/lib/workflows/review-changes";
 
 async function requestContext(formData: FormData) {
 	const session = await auth();
@@ -71,5 +72,23 @@ export async function verifyChangesAction(formData: FormData) {
 export async function repairChangesAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
 	await startRepair(workflowId, userId);
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function approveChangesAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	await approveChanges(workflowId, userId);
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function rejectChangesAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	const reason = z
+		.string()
+		.trim()
+		.min(3)
+		.max(500)
+		.safeParse(formData.get("reason"));
+	if (reason.success) await rejectChanges(workflowId, userId, reason.data);
 	redirect(`/workflows/${workflowId}`);
 }

@@ -1,4 +1,4 @@
-const TEST_PATH = /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
+export const TEST_PATH = /(^|\/)(tests?|__tests__)\/|\.(test|spec)\.[cm]?[jt]sx?$/;
 const DISABLERS =
 	/\b(?:it|test|describe)\.(?:skip|todo|only)\s*\(|\b(?:xit|xtest|xdescribe|fit|fdescribe)\s*\(/;
 const CASES = /\b(?:it|test)\s*\(/g;

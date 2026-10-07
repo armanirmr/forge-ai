@@ -44,7 +44,7 @@ export async function PlanSection({
         <h2 className="text-lg font-medium">Implementation plan</h2>
         {plan?.success && (
           <Badge variant="outline">
-            {["plan_approved", "generating", "changes_generated"].includes(status)
+            {["plan_approved", "generating", "changes_generated", "verifying", "repairing", "changes_approved", "changes_rejected"].includes(status)
               ? "Approved"
               : "Draft, not approved"}
           </Badge>

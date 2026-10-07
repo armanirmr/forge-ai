@@ -117,6 +117,8 @@ export const workflows = pgTable("workflows", {
 			"failed",
 			"verifying",
 			"repairing",
+			"changes_approved",
+			"changes_rejected",
 		],
 	}).notNull(),
 	error: text("error"),
@@ -212,3 +214,20 @@ export const repairAttempts = pgTable(
 		),
 	],
 );
+
+export const changeApprovals = pgTable("change_approvals", {
+	id: uuid("id").primaryKey().defaultRandom(),
+	workflowId: uuid("workflow_id")
+		.notNull()
+		.unique()
+		.references(() => workflows.id, { onDelete: "cascade" }),
+	decision: text("decision", { enum: ["approved", "rejected"] }).notNull(),
+	decidedBy: text("decided_by").notNull(),
+	reason: text("reason"),
+	/** SHA-256 of the exact effective edits (generated plus accepted repairs) the decision applies to. */
+	editsHash: text("edits_hash").notNull(),
+	verificationRunId: uuid("verification_run_id").references(
+		() => verificationRuns.id,
+	),
+	createdAt: createdAt(),
+});

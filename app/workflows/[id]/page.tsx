@@ -18,6 +18,7 @@ import { PlanSection } from "./plan-section";
 import { ChangesSection } from "./changes-section";
 import { VerificationSection } from "./verification-section";
 import { RepairSection } from "./repair-section";
+import { ReviewSection } from "./review-section";
 
 function List({ title, items }: { title: string; items: string[] }) {
   return (
@@ -140,6 +141,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
       <ChangesSection workflowId={wf.id} status={wf.status} error={wf.error} />
       <VerificationSection workflowId={wf.id} status={wf.status} updatedAt={wf.updatedAt} />
       <RepairSection workflowId={wf.id} status={wf.status} updatedAt={wf.updatedAt} error={wf.error} />
+      <ReviewSection workflowId={wf.id} repositoryId={wf.repositoryId} status={wf.status} />
 
       {context?.success && (
         <section className="space-y-2">
