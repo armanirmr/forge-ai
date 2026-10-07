@@ -36,7 +36,7 @@ function toJsonSchema(schema: z.ZodType): Record<string, unknown> {
 
 /** Overload / rate-limit style errors worth a short, bounded retry. */
 export function isTransientProviderError(message: string): boolean {
-	return /\b(503|429)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand|json_validate_failed/i.test(
+	return /\b(503|429)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|overloaded|high demand/i.test(
 		message,
 	);
 }
@@ -54,10 +54,17 @@ export function parseRetryAfterMs(message: string): number | null {
 
 const MAX_RATE_LIMIT_WAIT_MS = 40_000;
 
-function transientWaitMs(message: string, fallbackMs: number): number {
+const RATE_LIMIT_WITHOUT_HINT_MS = 30_000;
+
+/** Waits for the provider's hint when present. Without a hint, rate limits wait at least 30 s. */
+export function transientWaitMs(message: string, fallbackMs: number): number {
 	const hinted = parseRetryAfterMs(message);
-	if (hinted === null) return fallbackMs;
-	return Math.min(Math.max(hinted + 500, fallbackMs), MAX_RATE_LIMIT_WAIT_MS);
+	if (hinted !== null) {
+		return Math.min(Math.max(hinted + 500, fallbackMs), MAX_RATE_LIMIT_WAIT_MS);
+	}
+	if (/\b429\b|rate.?limit/i.test(message))
+		return Math.max(fallbackMs, RATE_LIMIT_WITHOUT_HINT_MS);
+	return fallbackMs;
 }
 
 export async function runAgent<I, O>(

@@ -10,6 +10,7 @@ import {
 	type CodeGenerationInput,
 } from "@/ai/schemas/code-generation";
 import { applyEdits } from "@/lib/patch/apply-edits";
+import { findMissingCoverage } from "@/lib/patch/coverage";
 import { redactSecrets } from "@/lib/security/redact";
 import type { AgentDefinition } from "./types";
 
@@ -27,6 +28,7 @@ export const codeGenerator: AgentDefinition<CodeGenerationInput, CodeChange> = {
 		const tasks = new Map(input.plan.tasks.map((t) => [t.id, t]));
 
 		output.edits.forEach((e, i) => {
+			problems.push(...findMissingCoverage(input.plan.tasks, output.edits));
 			const label = `edit ${i + 1} (${e.path})`;
 			const task = tasks.get(e.taskId);
 			if (!task) {

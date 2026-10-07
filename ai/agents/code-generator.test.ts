@@ -100,7 +100,7 @@ describe("codeGenerator.semanticChecks", () => {
 				replace: "y",
 			},
 		]);
-		expect(problems[0]).toContain("outside the scope");
+		expect(problems.some((p) => p.includes("outside the scope"))).toBe(true);
 	});
 
 	it("rejects a search that does not match the file", () => {

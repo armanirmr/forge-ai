@@ -1,8 +1,9 @@
 import { GeminiProvider } from "@/ai/providers/gemini";
 import { OpenAICompatibleProvider } from "@/ai/providers/openai-compatible";
 import type { AIProvider } from "@/ai/providers/types";
+import { paceProvider } from "@/lib/ai/pacing";
 
-export function getProvider(): AIProvider {
+function createBaseProvider(): AIProvider {
 	const name = process.env.AI_PROVIDER;
 	if (!name) throw new Error("AI_PROVIDER is not set in .env.local");
 	const apiKey = process.env.AI_API_KEY;
@@ -24,4 +25,9 @@ export function getProvider(): AIProvider {
 		default:
 			throw new Error(`Unsupported AI_PROVIDER: ${name}`);
 	}
+}
+
+/** Every caller gets a provider wrapped with the rate limiter. */
+export function getProvider(): AIProvider {
+	return paceProvider(createBaseProvider());
 }

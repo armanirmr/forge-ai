@@ -2,7 +2,12 @@ import { describe, it, expect } from "vitest";
 import { z } from "zod";
 import type { AgentDefinition } from "@/ai/agents/types";
 import { FakeProvider } from "@/ai/providers/fake";
-import { runAgent, isTransientProviderError, parseRetryAfterMs } from "./run-agent";
+import {
+	runAgent,
+	isTransientProviderError,
+	parseRetryAfterMs,
+	transientWaitMs,
+} from "./run-agent";
 
 const def: AgentDefinition<{ q: string }, { answer: string }> = {
 	name: "test-agent",
@@ -107,12 +112,22 @@ describe("runAgent", () => {
 		).toBe(true);
 		expect(isTransientProviderError("RESOURCE_EXHAUSTED")).toBe(true);
 		expect(isTransientProviderError("model not found")).toBe(false);
-		expect(isTransientProviderError('{"error":{"code":"json_validate_failed"}}')).toBe(true);
+		expect(
+			isTransientProviderError('{"error":{"code":"json_validate_failed"}}'),
+		).toBe(false);
 	});
 
 	it("reads the retry hint from rate-limit messages", () => {
 		expect(parseRetryAfterMs("Please try again in 3.495s.")).toBe(3495);
 		expect(parseRetryAfterMs("Please try again in 224.999999ms.")).toBe(225);
 		expect(parseRetryAfterMs("model not found")).toBeNull();
+	});
+
+	it("waits at least 30 s on a rate limit without a hint", () => {
+		expect(
+			transientWaitMs('{"message":"Rate limit exceeded","code":"1300"}', 2000),
+		).toBe(30000);
+		expect(transientWaitMs("503 UNAVAILABLE", 2000)).toBe(2000);
+		expect(transientWaitMs("try again in 3.495s", 2000)).toBe(3995);
 	});
 });

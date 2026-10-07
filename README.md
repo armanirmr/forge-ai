@@ -4,7 +4,7 @@ An AI-assisted software delivery tool: it turns a requirement into a validated a
 
 ## Status
 
-Milestone 3.1 complete: requirement analysis, draft plans, plan approval, and validated code edits with import-aware context (not applied). Not implemented: embeddings, code verification, debugging, review, approval, pull requests, analytics.
+Milestone 3 complete: requirement analysis, draft plans, plan approval, and validated code edits with import-aware context and coverage checking (not applied or executed). Request pacing for rate-limited providers. Not implemented: embeddings, code verification, debugging, review, approval of code changes, PR creation.
 
 ## Stack
 
