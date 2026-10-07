@@ -116,6 +116,7 @@ export const workflows = pgTable("workflows", {
 			"changes_generated",
 			"failed",
 			"verifying",
+			"repairing",
 		],
 	}).notNull(),
 	error: text("error"),
@@ -179,4 +180,35 @@ export const verificationRuns = pgTable(
 		createdAt: createdAt(),
 	},
 	(t) => [index("verification_runs_workflow_idx").on(t.workflowId)],
+);
+
+export const repairAttempts = pgTable(
+	"repair_attempts",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workflowId: uuid("workflow_id")
+			.notNull()
+			.references(() => workflows.id, { onDelete: "cascade" }),
+		attemptNumber: integer("attempt_number").notNull(),
+		/** The failing verification run this attempt responded to. */
+		verificationRunId: uuid("verification_run_id").references(
+			() => verificationRuns.id,
+		),
+		aiRunId: uuid("ai_run_id").references(() => aiRuns.id),
+		status: text("status", {
+			enum: ["accepted", "rejected", "stopped"],
+		}).notNull(),
+		/** Validated RepairSchema output; null when the attempt was rejected. */
+		result: jsonb("result").$type<Record<string, unknown>>(),
+		error: text("error"),
+		/** The verification run executed after this attempt's edits were applied. */
+		resultRunId: uuid("result_run_id").references(() => verificationRuns.id),
+		createdAt: createdAt(),
+	},
+	(t) => [
+		unique("repair_attempts_workflow_attempt_uq").on(
+			t.workflowId,
+			t.attemptNumber,
+		),
+	],
 );

@@ -12,6 +12,7 @@ import {
 	startPlanning,
 } from "@/lib/workflows/generate-plan";
 import { startVerification } from "@/lib/workflows/verify-changes";
+import { startRepair } from "@/lib/workflows/repair-changes";
 
 async function requestContext(formData: FormData) {
 	const session = await auth();
@@ -64,5 +65,11 @@ export async function requestPlanChangesAction(formData: FormData) {
 export async function verifyChangesAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
 	await startVerification(workflowId, userId);
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function repairChangesAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	await startRepair(workflowId, userId);
 	redirect(`/workflows/${workflowId}`);
 }
