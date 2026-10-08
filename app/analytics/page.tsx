@@ -1,8 +1,8 @@
-import { count, desc, eq, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, sql, sum } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { ProductHeader } from "@/components/product-header";
-import { aiRuns, changeApprovals, codeChanges, repairAttempts, verificationRuns, workflows } from "@/lib/db/schema";
+import { aiRuns, changeApprovals, codeChanges, repairAttempts, repositories, verificationRuns, workflows } from "@/lib/db/schema";
 import { db } from "@/lib/db";
 
 const number = (value: number | string | null | undefined) => Number(value ?? 0);
@@ -16,6 +16,11 @@ function isTestPath(path: string): boolean {
 export default async function AnalyticsPage() {
 	const session = await auth();
 	if (!session) redirect("/");
+	const userId = session.user.id;
+	const ownerScope = and(
+		eq(repositories.ownerUserId, userId),
+		eq(workflows.createdByUserId, userId),
+	);
 
 	const runCount = count();
 	const [runTotals] = await db
@@ -24,7 +29,10 @@ export default async function AnalyticsPage() {
 			inputTokens: sum(aiRuns.inputTokens),
 			outputTokens: sum(aiRuns.outputTokens),
 		})
-		.from(aiRuns);
+		.from(aiRuns)
+		.innerJoin(workflows, eq(aiRuns.workflowId, workflows.id))
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope);
 	const runsByAgent = await db
 		.select({
 			agent: aiRuns.agent,
@@ -33,27 +41,42 @@ export default async function AnalyticsPage() {
 			outputTokens: sum(aiRuns.outputTokens),
 		})
 		.from(aiRuns)
+		.innerJoin(workflows, eq(aiRuns.workflowId, workflows.id))
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope)
 		.groupBy(aiRuns.agent)
 		.orderBy(desc(count()));
 	const repairsByStatus = await db
 		.select({ status: repairAttempts.status, total: count() })
 		.from(repairAttempts)
+		.innerJoin(workflows, eq(repairAttempts.workflowId, workflows.id))
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope)
 		.groupBy(repairAttempts.status);
 	const verificationsByStatus = await db
 		.select({ status: verificationRuns.status, total: count() })
 		.from(verificationRuns)
+		.innerJoin(workflows, eq(verificationRuns.workflowId, workflows.id))
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope)
 		.groupBy(verificationRuns.status);
 	const verificationSteps = await db
 		.select({
 			testSteps: sql<string[]>`jsonb_path_query_array(${verificationRuns.result}, '$.steps[*].name')`,
 		})
-		.from(verificationRuns);
+		.from(verificationRuns)
+		.innerJoin(workflows, eq(verificationRuns.workflowId, workflows.id))
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope);
 	const generatedPaths = await db
 		.select({
 			workflowId: codeChanges.workflowId,
 			paths: sql<string[]>`jsonb_path_query_array(${codeChanges.result}, '$.edits[*].path')`,
 		})
-		.from(codeChanges);
+		.from(codeChanges)
+		.innerJoin(workflows, eq(codeChanges.workflowId, workflows.id))
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope);
 	const decisions = await db
 		.select({
 			decision: changeApprovals.decision,
@@ -61,12 +84,18 @@ export default async function AnalyticsPage() {
 			workflowCreatedAt: workflows.createdAt,
 		})
 		.from(changeApprovals)
-		.innerJoin(workflows, eq(changeApprovals.workflowId, workflows.id));
+		.innerJoin(workflows, eq(changeApprovals.workflowId, workflows.id))
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope);
 	const workflowStatuses = await db
 		.select({ status: workflows.status, total: count() })
 		.from(workflows)
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope)
 		.groupBy(workflows.status);
-	const [workflowTotal] = await db.select({ total: count() }).from(workflows);
+	const [workflowTotal] = await db.select({ total: count() }).from(workflows)
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope);
 	const latestRuns = await db
 		.select({
 			agent: aiRuns.agent,
@@ -77,6 +106,9 @@ export default async function AnalyticsPage() {
 			createdAt: aiRuns.createdAt,
 		})
 		.from(aiRuns)
+		.innerJoin(workflows, eq(aiRuns.workflowId, workflows.id))
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(ownerScope)
 		.orderBy(desc(aiRuns.createdAt))
 		.limit(10);
 

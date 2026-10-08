@@ -5,6 +5,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { startRequirementAnalysis } from "@/lib/workflows/analyze-requirement";
 import { requireAISetup } from "@/lib/ai/setup-status";
+import { getOwnedRepository } from "@/lib/security/tenant-access";
 
 const Input = z.object({
 	repositoryId: z.string().uuid(),
@@ -28,6 +29,8 @@ export async function createRequirementAction(formData: FormData) {
 	}
 
 	const userId = session.user.id;
+	const repository = await getOwnedRepository(parsed.data.repositoryId, userId);
+	if (!repository) redirect("/repositories");
 	const workflowId = await startRequirementAnalysis(
 		parsed.data.repositoryId,
 		parsed.data.requirement,

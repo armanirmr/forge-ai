@@ -13,6 +13,7 @@ import {
 import { retrieveContext } from "@/lib/repository/retrieve";
 import { redactSecrets } from "@/lib/security/redact";
 import type { RetrievedContextMeta } from "./types";
+import { getOwnedRepository } from "@/lib/security/tenant-access";
 
 async function logEvent(
 	workflowId: string,
@@ -40,9 +41,12 @@ export async function startRequirementAnalysis(
 	requirement: string,
 	userId: string,
 ): Promise<string> {
+	if (!(await getOwnedRepository(repositoryId, userId))) {
+		throw new Error("Repository not found");
+	}
 	const [wf] = await db
 		.insert(workflows)
-		.values({ repositoryId, requirement, status: "analyzing" })
+		.values({ repositoryId, requirement, status: "analyzing", createdByUserId: userId })
 		.returning({ id: workflows.id });
 	await logEvent(wf.id, "REQUIREMENT_CREATED", `user:${userId}`, {
 		length: requirement.length,

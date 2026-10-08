@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, count, eq, isNotNull, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { ArrowUpRight, Clock3, Code2, GitBranch, GitFork, FolderCode, Layers3, Plus, Star } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -16,7 +16,7 @@ import { listOwnedRepos } from "@/lib/github/client";
 import { getGitHubAccessToken } from "@/lib/github/access-token";
 import { EMBEDDING_MODEL } from "@/lib/repository/embeddings";
 import { requireAISetup } from "@/lib/ai/setup-status";
-import { importRepositoryAction } from "./actions";
+import { importRepositoryAction, restoreLegacyRepositoryAction } from "./actions";
 
 type LocalRepository = {
   id: string;
@@ -95,10 +95,16 @@ export default async function RepositoriesPage({
           indexedFiles: sql<number>`(${indexedFilesQuery})`,
           chunkCount: sql<number>`(${chunkCountQuery})`,
         })
-        .from(metricsRepository),
+        .from(metricsRepository)
+        .where(eq(metricsRepository.ownerUserId, session.user.id)),
       db
         .select({ repositoryId: workflows.repositoryId, workflowCount: count() })
         .from(workflows)
+        .innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+        .where(and(
+          eq(repositories.ownerUserId, session.user.id),
+          eq(workflows.createdByUserId, session.user.id),
+        ))
         .groupBy(workflows.repositoryId),
     ]);
     const workflowCountByLocalId = new Map(
@@ -117,6 +123,19 @@ export default async function RepositoriesPage({
   }
 
   const importedCount = repos.filter((repo) => localByGitHubId.has(String(repo.githubRepoId))).length;
+	const legacyRepositories = repos.length
+		? await db.select({
+			id: repositories.id,
+			githubRepoId: repositories.githubRepoId,
+			owner: repositories.owner,
+		}).from(repositories).where(and(
+			isNull(repositories.ownerUserId),
+			inArray(repositories.githubRepoId, repos.map((repo) => repo.githubRepoId)),
+		))
+		: [];
+	const restorableByGitHubId = new Map(
+		legacyRepositories.map((repository) => [String(repository.githubRepoId), repository]),
+	);
   const totalWorkflows = repos.reduce(
     (total, repo) => total + (localByGitHubId.get(String(repo.githubRepoId))?.workflowCount ?? 0),
     0,
@@ -160,6 +179,8 @@ export default async function RepositoriesPage({
           <ul className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
             {repos.map((repo) => {
               const local = localByGitHubId.get(String(repo.githubRepoId));
+              const legacy = restorableByGitHubId.get(String(repo.githubRepoId));
+              const canRestore = !local && legacy?.owner.toLowerCase() === repo.owner.toLowerCase();
               return (
                 <li key={repo.githubRepoId} className="min-w-0">
                   <Card className="h-full gap-0 border border-border/80 py-0 transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
@@ -221,6 +242,14 @@ export default async function RepositoriesPage({
                           <Link href={`/repositories/${local.id}`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover">
                             Open workspace <ArrowUpRight aria-hidden="true" className="size-4" />
                           </Link>
+                        </>
+                      ) : canRestore ? (
+                        <>
+                          <span className="text-sm text-muted-foreground">Previous ForgeAI workspace</span>
+                          <form action={restoreLegacyRepositoryAction}>
+                            <input type="hidden" name="repositoryId" value={legacy.id} />
+                            <Button type="submit" size="sm"><ArrowUpRight aria-hidden="true" />Restore workspace</Button>
+                          </form>
                         </>
                       ) : (
                         <>

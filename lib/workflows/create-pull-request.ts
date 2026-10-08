@@ -5,16 +5,15 @@ import {
 	changeApprovals,
 	changeReviews,
 	pullRequests,
-	repositories,
 	verificationRuns,
 	workflowEvents,
-	workflows,
 } from "@/lib/db/schema";
 import { redactSecrets } from "@/lib/security/redact";
 import { VerificationResultSchema } from "@/lib/verify/types";
 import { createGitHubPullRequest, pullRequestBranchName } from "@/lib/github/pull-request";
 import { loadReview } from "./review-changes";
 import { loadWorkspaceState } from "./workspace";
+import { getOwnedWorkflow } from "@/lib/security/tenant-access";
 
 export async function createApprovedPullRequest(
 	workflowId: string,
@@ -22,11 +21,9 @@ export async function createApprovedPullRequest(
 	accessToken: string | undefined,
 ): Promise<string | null> {
 	if (!accessToken) return "A GitHub access token is required; sign in again";
-	const [wf] = await db
-		.select({ repositoryId: workflows.repositoryId, status: workflows.status, requirement: workflows.requirement })
-		.from(workflows)
-		.where(eq(workflows.id, workflowId));
-	if (!wf) return "Workflow not found";
+	const owned = await getOwnedWorkflow(workflowId, userId);
+	if (!owned) return "Workflow not found";
+	const wf = owned.workflow;
 	if (wf.status !== "changes_approved") return "Changes must be approved before creating a pull request";
 
 	const [approval] = await db.select().from(changeApprovals).where(eq(changeApprovals.workflowId, workflowId));
@@ -44,8 +41,7 @@ export async function createApprovedPullRequest(
 		return "The latest verification must have passed for the current edits";
 	}
 
-	const [repo] = await db.select().from(repositories).where(eq(repositories.id, wf.repositoryId));
-	if (!repo) return "Repository not found";
+	const repo = owned.repository;
 	const [existing] = await db.select().from(pullRequests).where(eq(pullRequests.workflowId, workflowId));
 	if (existing?.status === "created") return existing.pullUrl ?? "A pull request was already created";
 	if (existing?.status === "creating") return "Pull request creation is already in progress";

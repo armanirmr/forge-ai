@@ -98,6 +98,7 @@ export async function importRepository(
 		const [row] = await tx
 			.insert(repositories)
 			.values({
+				ownerUserId: userId,
 				githubRepoId: repo.id,
 				name: repo.name,
 				owner: repo.owner.login,
@@ -105,7 +106,7 @@ export async function importRepository(
 				language: repo.language,
 			})
 			.onConflictDoUpdate({
-				target: repositories.githubRepoId,
+				target: [repositories.ownerUserId, repositories.githubRepoId],
 				set: {
 					name: repo.name,
 					owner: repo.owner.login,

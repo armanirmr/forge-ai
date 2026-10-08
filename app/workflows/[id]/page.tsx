@@ -13,12 +13,11 @@ import { db } from "@/lib/db";
 import {
   aiRuns,
   pullRequests,
-  repositories,
   requirementAnalyses,
   workflowEvents,
-  workflows,
 } from "@/lib/db/schema";
 import { RetrievedContextMetaSchema } from "@/lib/workflows/types";
+import { getOwnedWorkflow } from "@/lib/security/tenant-access";
 import { WorkflowProgress } from "./workflow-progress";
 import { PlanSection } from "./plan-section";
 import { ChangesSection } from "./changes-section";
@@ -55,10 +54,11 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();
 
-  const [wf] = await db.select().from(workflows).where(eq(workflows.id, id));
-  if (!wf) notFound();
+  const owned = await getOwnedWorkflow(id, session.user.id);
+  if (!owned) notFound();
+  const wf = owned.workflow;
 
-  const [repo] = await db.select().from(repositories).where(eq(repositories.id, wf.repositoryId));
+  const repo = owned.repository;
   const [pullRequest] = await db
     .select({ status: pullRequests.status, pullNumber: pullRequests.pullNumber, updatedAt: pullRequests.updatedAt })
     .from(pullRequests)

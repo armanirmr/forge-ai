@@ -9,29 +9,30 @@ import { ProductHeader } from "@/components/product-header";
 import { AsyncSubmitButton } from "@/components/async-submit-button";
 import { CooldownRegistration } from "@/components/cooldown-provider";
 import { db } from "@/lib/db";
-import { codeChunks, repositories, repositoryFiles, workflows } from "@/lib/db/schema";
+import { codeChunks, repositoryFiles, workflows } from "@/lib/db/schema";
 import { createRequirementAction } from "./actions";
-import { reindexRepositoryAction, searchRepositoryAction } from "../actions";
+import { recoverLegacyWorkflowsAction, reindexRepositoryAction, searchRepositoryAction } from "../actions";
 import { EMBEDDING_MODEL } from "@/lib/repository/embeddings";
 import { retrieveContext } from "@/lib/repository/retrieve";
 import { requireAISetup } from "@/lib/ai/setup-status";
+import { getOwnedRepository } from "@/lib/security/tenant-access";
 
 export default async function RepositoryPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; q?: string; reindexed?: string }>;
+  searchParams: Promise<{ error?: string; q?: string; reindexed?: string; restored?: string; recovered?: string }>;
 }) {
   const session = await auth();
   if (!session) redirect("/");
   await requireAISetup(session.user.id);
 
   const { id } = await params;
-  const { error, q, reindexed } = await searchParams;
+  const { error, q, reindexed, restored, recovered } = await searchParams;
   if (!z.string().uuid().safeParse(id).success) notFound();
 
-  const [repo] = await db.select().from(repositories).where(eq(repositories.id, id));
+  const repo = await getOwnedRepository(id, session.user.id);
   if (!repo) notFound();
 
   const files = await db
@@ -78,11 +79,15 @@ export default async function RepositoryPage({
       createdAt: workflows.createdAt,
     })
     .from(workflows)
-    .where(eq(workflows.repositoryId, id))
+    .where(and(eq(workflows.repositoryId, id), eq(workflows.createdByUserId, session.user.id)))
     .orderBy(desc(workflows.createdAt))
     .limit(10);
   const [{ workflowCount }] = await db
     .select({ workflowCount: count() })
+    .from(workflows)
+    .where(and(eq(workflows.repositoryId, id), eq(workflows.createdByUserId, session.user.id)));
+  const [{ allWorkflowCount }] = await db
+    .select({ allWorkflowCount: count() })
     .from(workflows)
     .where(eq(workflows.repositoryId, id));
 
@@ -105,6 +110,8 @@ export default async function RepositoryPage({
           <ArrowLeft aria-hidden="true" className="size-4" /> All repositories
         </Link>
         {reindexed && <p role="status" className="text-sm font-medium text-success-muted-foreground">Repository index refreshed.</p>}
+        {restored && <p role="status" className="text-sm font-medium text-success-muted-foreground">Workspace restored{recovered ? ` · ${recovered} prior workflows recovered` : ""}.</p>}
+        {recovered && !restored && <p role="status" className="text-sm font-medium text-success-muted-foreground">Recovered {recovered} previous workflows.</p>}
       </div>
 
       <section aria-labelledby="repository-title" className="grid gap-7 rounded-xl bg-foreground p-5 text-background sm:p-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
@@ -241,7 +248,15 @@ export default async function RepositoryPage({
               <h2 id="recent-work-title" className="font-heading text-xl font-semibold">Recent work</h2>
               <p className="text-sm text-muted-foreground">Pick up a requirement already in progress.</p>
             </div>
-            {recent.length > 0 && <span className="text-sm tabular-nums text-muted-foreground">Latest {recent.length}{recent.length === 10 ? " of more" : ""}</span>}
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {allWorkflowCount > workflowCount && <form action={recoverLegacyWorkflowsAction}>
+                <input type="hidden" name="repositoryId" value={repo.id} />
+                <AsyncSubmitButton variant="outline" size="sm" pendingLabel="Recovering…" pendingMessage="Matching prior workflow records to your verified GitHub profile.">
+                  Recover previous workflows
+                </AsyncSubmitButton>
+              </form>}
+              {recent.length > 0 && <span className="text-sm tabular-nums text-muted-foreground">Latest {recent.length}{recent.length === 10 ? " of more" : ""}</span>}
+            </div>
           </div>
           {recent.length > 0 ? (
             <ul className="divide-y divide-border border-y border-border">

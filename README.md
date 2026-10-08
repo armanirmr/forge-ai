@@ -20,6 +20,7 @@ Recent product work improves the workflow and repository screens: visible workfl
 - Workflow detail screens that make the current stage, wait duration, and next action clear while keeping detailed evidence available on demand.
 - First-run AI setup that guides signed-in users through chat-provider and repository-embedding credentials before repository features that depend on them.
 - Per-account AI settings for Gemini, Groq, OpenAI, and Anthropic chat adapters, with encrypted credentials and a separate Gemini Embedding 2 key when needed.
+- Per-account repository ownership: repository pages, workflows, server actions, pull requests, and analytics are scoped to the signed-in GitHub account.
 
 ## Stack
 
@@ -90,7 +91,7 @@ Never commit `.env.local`, provider keys, OAuth secrets, or access tokens. Use p
 - Repository content is untrusted and may be partial or stale. Secret redaction runs before code context is sent to providers.
 - Approval is a human boundary. AI review, successful verification, and PR creation do not replace the human decision; ForgeAI never merges.
 - The UI reports request elapsed time and recorded workflow stages. It does not claim token streaming or percentage completion because the server does not provide that information.
-- Analytics aggregate all recorded workflows because the current schema has no user-ownership field. Add tenant scoping before multi-user deployment.
+- Repositories imported before the ownership migration can be restored by the verified GitHub owner; see [security notes](docs/security.md).
 - See [security notes](docs/security.md), [AI workflows](docs/ai-workflows.md), [architecture](docs/architecture.md), and [decision records](docs/decisions/) for detail.
 
 ## Project documentation

@@ -17,7 +17,8 @@ const createdAt = () =>
 
 export const repositories = pgTable("repositories", {
 	id: uuid("id").primaryKey().defaultRandom(),
-	githubRepoId: bigint("github_repo_id", { mode: "number" }).notNull().unique(),
+	ownerUserId: text("owner_user_id"),
+	githubRepoId: bigint("github_repo_id", { mode: "number" }).notNull(),
 	name: text("name").notNull(),
 	owner: text("owner").notNull(),
 	defaultBranch: text("default_branch").notNull(),
@@ -26,7 +27,10 @@ export const repositories = pgTable("repositories", {
 	updatedAt: timestamp("updated_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
-});
+	}, (t) => [
+		unique("repositories_owner_github_repo_uq").on(t.ownerUserId, t.githubRepoId),
+		index("repositories_owner_user_idx").on(t.ownerUserId),
+	]);
 
 export const userAISettings = pgTable("user_ai_settings", {
 	userId: text("user_id").primaryKey(),
@@ -120,6 +124,7 @@ export const workflowEvents = pgTable(
 
 export const workflows = pgTable("workflows", {
 	id: uuid("id").primaryKey().defaultRandom(),
+	createdByUserId: text("created_by_user_id"),
 	repositoryId: uuid("repository_id")
 		.notNull()
 		.references(() => repositories.id, { onDelete: "cascade" }),
@@ -143,9 +148,9 @@ export const workflows = pgTable("workflows", {
 	error: text("error"),
 	createdAt: createdAt(),
 	updatedAt: timestamp("updated_at", { withTimezone: true })
-		.notNull()
-		.defaultNow(),
-});
+			.notNull()
+			.defaultNow(),
+	}, (t) => [index("workflows_created_by_user_idx").on(t.createdByUserId)]);
 
 export const requirementAnalyses = pgTable("requirement_analyses", {
 	id: uuid("id").primaryKey().defaultRandom(),

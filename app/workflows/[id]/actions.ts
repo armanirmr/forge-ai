@@ -18,6 +18,7 @@ import { startAiReview } from "@/lib/workflows/ai-review";
 import { createApprovedPullRequest } from "@/lib/workflows/create-pull-request";
 import { getGitHubAccessToken } from "@/lib/github/access-token";
 import { requireAISetup } from "@/lib/ai/setup-status";
+import { getOwnedWorkflow } from "@/lib/security/tenant-access";
 
 async function requestContext(formData: FormData) {
 	const session = await auth();
@@ -25,6 +26,8 @@ async function requestContext(formData: FormData) {
 
 	const parsed = z.string().uuid().safeParse(formData.get("workflowId"));
 	if (!parsed.success) redirect("/repositories");
+	const owned = await getOwnedWorkflow(parsed.data, session.user.id);
+	if (!owned) redirect("/repositories");
 
 	return {
 		workflowId: parsed.data,
