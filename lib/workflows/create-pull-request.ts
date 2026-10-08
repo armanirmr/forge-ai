@@ -36,6 +36,9 @@ export async function createApprovedPullRequest(
 	} catch (err) {
 		return err instanceof Error ? err.message : String(err);
 	}
+	if (review.traceBlockers.length > 0) {
+		return `The change-to-requirement review is incomplete: ${review.traceBlockers.join("; ")}`;
+	}
 	if (review.editsHash !== approval.editsHash) return "The current edits differ from the approved edits";
 	if (review.latestRun?.status !== "passed" || !review.verificationCurrent) {
 		return "The latest verification must have passed for the current edits";

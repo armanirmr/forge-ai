@@ -1,6 +1,7 @@
 import type { AnalyticsBucket } from "./series";
 
 export const analyticsRanges = [
+	{ value: "7d", label: "Last 7 days", days: 7, bucket: "day" },
 	{ value: "30d", label: "Last 30 days", days: 30, bucket: "day" },
 	{ value: "90d", label: "Last 90 days", days: 90, bucket: "week" },
 	{ value: "365d", label: "12 months", days: 365, bucket: "month" },
@@ -71,7 +72,9 @@ export function resolveAnalyticsDateRange(
 		}
 	}
 
-	const fallback = analyticsRanges[1];
+	const fallback = rangeValue === "custom"
+		? analyticsRanges.find((option) => option.value === "90d")!
+		: analyticsRanges[0];
 	const rangeEnd = now;
 	const rangeStart = new Date(rangeEnd.getTime() - fallback.days * DAY_MS);
 	return {

@@ -1,11 +1,13 @@
 import { and, asc, desc, eq } from "drizzle-orm";
 import { ImplementationPlanSchema } from "@/ai/schemas/implementation-plan";
+import { RequirementAnalysisSchema } from "@/ai/schemas/requirement-analysis";
 import { RepairSchema } from "@/ai/schemas/repair";
 import { db } from "@/lib/db";
 import {
 	changeApprovals,
 	codeChanges,
 	implementationPlans,
+	requirementAnalyses,
 	repairAttempts,
 	verificationRuns,
 	workflowEvents,
@@ -21,6 +23,7 @@ import { buildHunks, limitHunks, type Hunk } from "@/lib/review/line-diff";
 import { VerificationResultSchema } from "@/lib/verify/types";
 import { loadEffectiveEdits } from "./effective-edits";
 import { loadWorkspaceState } from "./workspace";
+import { buildRequirementTrace, requirementTraceBlockers, type RequirementTrace, type UnmappedTaskEdits } from "@/lib/review/traceability";
 
 const CONTEXT_LINES = 3;
 const MAX_LINES_PER_FILE = 400;
@@ -30,12 +33,17 @@ export type ReviewFile = {
 	isNew: boolean;
 	added: number;
 	removed: number;
+	requirementIds: string[];
+	unmappedTaskIds: string[];
 	hunks: Hunk[];
 	truncated: boolean;
 };
 
 export type Review = {
 	files: ReviewFile[];
+	requirements: RequirementTrace[];
+	unmappedTasks: UnmappedTaskEdits[];
+	traceBlockers: string[];
 	flags: ReviewFlag[];
 	blockers: string[];
 	editsHash: string;
@@ -62,6 +70,14 @@ export async function loadReview(
 	const plan = ImplementationPlanSchema.safeParse(planRow.result);
 	if (!plan.success)
 		throw new Error("Stored plan no longer matches the current schema");
+
+	const [analysisRow] = await db
+		.select()
+		.from(requirementAnalyses)
+		.where(eq(requirementAnalyses.workflowId, workflowId));
+	const parsedAnalysis = analysisRow
+		? RequirementAnalysisSchema.safeParse(analysisRow.result)
+		: null;
 
 	const [codeRow] = await db
 		.select({ createdAt: codeChanges.createdAt })
@@ -111,6 +127,11 @@ export async function loadReview(
 		...(codeRow ? [codeRow.createdAt] : []),
 		...repairs.map((r) => r.createdAt),
 	];
+	const trace = buildRequirementTrace(
+		state.edits,
+		plan.data.tasks,
+		parsedAnalysis?.success ? parsedAnalysis.data.functionalRequirements : [],
+	);
 
 	const files: ReviewFile[] = [...new Set(state.touched)].sort().map((path) => {
 		const before = Object.prototype.hasOwnProperty.call(state.original, path)
@@ -120,11 +141,18 @@ export async function loadReview(
 		const all = buildHunks(before, after, CONTEXT_LINES);
 		const lines = all.flatMap((h) => h.lines);
 		const limited = limitHunks(all, MAX_LINES_PER_FILE);
+		const pathRequirements = trace.requirements
+			.filter((requirement) => requirement.tasks.some((task) => task.paths.includes(path)))
+			.map((requirement) => requirement.id);
 		return {
 			path,
 			isNew: before === null,
 			added: lines.filter((l) => l.type === "+").length,
 			removed: lines.filter((l) => l.type === "-").length,
+			requirementIds: pathRequirements,
+			unmappedTaskIds: trace.unmappedTasks
+				.filter((task) => task.paths.includes(path))
+				.map((task) => task.taskId),
 			hunks: limited.hunks,
 			truncated: limited.truncated,
 		};
@@ -134,19 +162,27 @@ export async function loadReview(
 		? isVerificationCurrent(latest.createdAt, editTimes)
 		: false;
 
+	const traceBlockers = requirementTraceBlockers(trace, parsedAnalysis?.success === true);
+
 	return {
 		files,
+		requirements: trace.requirements,
+		unmappedTasks: trace.unmappedTasks,
+		traceBlockers,
 		flags: findReviewFlags({
 			tasks: plan.data.tasks,
 			edits: state.edits,
 			repairEditPaths,
 			skippedChecks,
 		}),
-		blockers: approvalBlockers({
-			workflowStatus,
-			latestRunStatus: latest?.status ?? null,
-			verificationCurrent,
-		}),
+		blockers: [
+			...approvalBlockers({
+				workflowStatus,
+				latestRunStatus: latest?.status ?? null,
+				verificationCurrent,
+			}),
+			...traceBlockers,
+		],
 		editsHash: hashEdits(state.edits),
 		editCount: state.edits.length,
 		repairCount: repairs.length,

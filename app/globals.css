@@ -265,6 +265,123 @@
   0%, 100% { opacity: 0.55; }
   50% { opacity: 1; }
 }
+.welcome-atmosphere {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.welcome-atmosphere::before,
+.welcome-atmosphere::after {
+  position: absolute;
+  width: min(72vw, 58rem);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  content: "";
+}
+.welcome-atmosphere::before {
+  top: -34rem;
+  right: -16rem;
+  background: radial-gradient(ellipse at center, var(--workflow-glow-blue), transparent 70%);
+}
+.welcome-atmosphere::after {
+  bottom: -42rem;
+  left: -23rem;
+  background: radial-gradient(ellipse at center, var(--workflow-glow-teal), transparent 70%);
+}
+.welcome-process { isolation: isolate; }
+.welcome-stages {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.welcome-stages::before,
+.welcome-stages::after {
+  position: absolute;
+  top: 1.375rem;
+  left: 10%;
+  width: 80%;
+  height: 1px;
+  content: "";
+}
+.welcome-stages::before { background: var(--border); }
+.welcome-stages::after {
+  height: 2px;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--primary), var(--chart-1), var(--success));
+  animation: welcome-route-reveal 1.15s cubic-bezier(0.16, 1, 0.3, 1) 180ms forwards;
+}
+.welcome-stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  min-width: 0;
+  text-align: center;
+}
+.welcome-stage-node {
+  display: grid;
+  width: 2.875rem;
+  height: 2.875rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--primary);
+}
+.welcome-stage:first-child .welcome-stage-node {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+.welcome-stage:last-child .welcome-stage-node {
+  border-color: var(--progress-done-border);
+  background: var(--progress-done-bg);
+  color: var(--progress-done-fg);
+}
+.welcome-stage-copy { display: grid; padding-top: 0.8rem; }
+@keyframes welcome-route-reveal {
+  to { transform: scaleX(1); }
+}
+@media (max-width: 700px) {
+  .welcome-stages {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+  .welcome-stages::before,
+  .welcome-stages::after {
+    top: 1.375rem;
+    left: 1.375rem;
+    width: 1px;
+    height: calc(100% - 2.75rem);
+  }
+  .welcome-stages::after {
+    width: 2px;
+    transform: scaleY(0);
+    transform-origin: center top;
+    animation-name: welcome-route-reveal-vertical;
+  }
+  .welcome-stage {
+    grid-template-columns: 2.875rem 1fr;
+    justify-items: start;
+    align-items: center;
+    gap: 0.875rem;
+    min-height: 4.125rem;
+    text-align: left;
+  }
+  .welcome-stage-copy { padding-top: 0; }
+}
+@keyframes welcome-route-reveal-vertical {
+  to { transform: scaleY(1); }
+}
 ::selection { color: var(--selection-fg); background: var(--selection-bg); }
 
 .workflow-atmosphere {
@@ -327,4 +444,5 @@
   .workflow-art.is-active .workflow-art-signal { stroke-dasharray: none; opacity: 0.8; }
   .workflow-atmosphere::before,
   .workflow-atmosphere::after { animation: none; will-change: auto; }
+  .welcome-stages::after { animation: none; transform: none; }
 }

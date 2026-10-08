@@ -13,11 +13,11 @@ Recent product work improves workflow control and recovery: users can stop an ac
 - GitHub OAuth sign-in, repository import, file indexing, and re-indexing.
 - Requirement analysis grounded in repository retrieval, followed by a draft implementation plan with human review and approval.
 - Validated code edits, verification in an isolated Docker environment, and a bounded repair loop.
-- A review view with explicit human approval or rejection; AI change review remains an opinion.
+- A file-by-file diff that traces generated edits through implementation-plan tasks to requirements, with explicit human approval or rejection; approval records the exact verified edits, and AI change review remains an opinion.
 - Pull request creation only after approval and current verification. Changeweft does not merge pull requests.
 - Gemini Embedding 2 (768 dimensions), pgvector, and hybrid semantic/keyword repository search.
 - Workflow analytics for AI calls and tokens, repairs, generated test-file paths, test executions, workflow states, approval duration, and approval rate. Definitions and limitations are in [decision 0011](docs/decisions/0011-workflow-analytics.md).
-- Analytics date filters for the last 30 days, last 90 days, last 12 months, or a custom inclusive calendar range; chart points provide themed hover and keyboard-focus tooltips.
+- Analytics date filters default to the last 7 days and also offer the last 30 days, last 90 days, last 12 months, or a custom inclusive calendar range; chart points provide themed hover and keyboard-focus tooltips.
 - Workflow detail screens that make the current stage, wait duration, and next action clear while keeping detailed evidence available on demand.
 - Workflow controls to cancel active runs at a safe checkpoint and retry failed requirement analysis, with retry activity recorded in the workflow timeline.
 - Workflow archive and restore controls that preserve workflow history.

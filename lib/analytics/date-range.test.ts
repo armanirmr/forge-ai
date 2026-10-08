@@ -4,6 +4,10 @@ import { resolveAnalyticsDateRange } from "./date-range";
 const now = new Date("2026-10-08T12:00:00.000Z");
 
 describe("analytics date range", () => {
+	it("defaults to the last 7 days", () => {
+		expect(resolveAnalyticsDateRange(undefined, undefined, undefined, now)).toMatchObject({ value: "7d", label: "Last 7 days", bucket: "day", invalidCustomRange: false });
+	});
+
 	it("keeps preset ranges and chart buckets", () => {
 		expect(resolveAnalyticsDateRange("30d", undefined, undefined, now)).toMatchObject({ value: "30d", bucket: "day", invalidCustomRange: false });
 		expect(resolveAnalyticsDateRange("90d", undefined, undefined, now)).toMatchObject({ value: "90d", bucket: "week" });
