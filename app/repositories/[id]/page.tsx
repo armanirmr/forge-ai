@@ -1,35 +1,68 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { count, desc, eq, isNotNull, and } from "drizzle-orm";
+import { count, desc, eq, ilike, isNotNull, isNull, and } from "drizzle-orm";
 import { ArrowLeft, ArrowUpRight, Braces, ChevronDown, Clock3, FileCode2, GitBranch, Search, Sparkles } from "lucide-react";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
 import { ProductHeader } from "@/components/product-header";
+import { WorkflowHistoryFilters } from "@/components/workflow-history-filters";
 import { AsyncSubmitButton } from "@/components/async-submit-button";
 import { CooldownRegistration } from "@/components/cooldown-provider";
 import { db } from "@/lib/db";
 import { codeChunks, repositoryFiles, workflows } from "@/lib/db/schema";
-import { createRequirementAction } from "./actions";
+import { archiveWorkflowAction, createRequirementAction, restoreWorkflowAction } from "./actions";
 import { recoverLegacyWorkflowsAction, reindexRepositoryAction, searchRepositoryAction } from "../actions";
 import { EMBEDDING_MODEL } from "@/lib/repository/embeddings";
 import { retrieveContext } from "@/lib/repository/retrieve";
 import { requireAISetup } from "@/lib/ai/setup-status";
 import { getOwnedRepository } from "@/lib/security/tenant-access";
+import {
+	escapeWorkflowHistorySearch,
+	normalizeWorkflowHistorySearch,
+	resolveWorkflowHistoryPage,
+	workflowHistoryPageCount,
+} from "@/lib/workflows/history-pagination";
+
+const WORKFLOW_PAGE_SIZE = 20;
+const WORKFLOW_STATUSES = [
+	"analyzing",
+	"analysis_completed",
+	"planning",
+	"plan_completed",
+	"plan_approved",
+	"generating",
+	"changes_generated",
+	"verifying",
+	"repairing",
+	"changes_approved",
+	"changes_rejected",
+	"failed",
+].map((value) => ({ value, label: value.replaceAll("_", " ") }));
 
 export default async function RepositoryPage({
   params,
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string; q?: string; reindexed?: string; restored?: string; recovered?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    q?: string;
+    reindexed?: string;
+    restored?: string;
+    recovered?: string;
+    history?: string;
+    workflowStatus?: string;
+    workflowArchive?: string;
+    workflowPage?: string;
+  }>;
 }) {
   const session = await auth();
   if (!session) redirect("/");
   await requireAISetup(session.user.id);
 
   const { id } = await params;
-  const { error, q, reindexed, restored, recovered } = await searchParams;
+  const { error, q, reindexed, restored, recovered, history, workflowStatus, workflowArchive, workflowPage } = await searchParams;
   if (!z.string().uuid().safeParse(id).success) notFound();
 
   const repo = await getOwnedRepository(id, session.user.id);
@@ -71,6 +104,29 @@ export default async function RepositoryPage({
     }
   }
 
+  const historySearch = normalizeWorkflowHistorySearch(history);
+  const allowedStatuses = new Set(WORKFLOW_STATUSES.map((status) => status.value));
+  const selectedWorkflowStatus = allowedStatuses.has(workflowStatus ?? "") ? workflowStatus! : "all";
+  const selectedArchive = workflowArchive === "archived" ? "archived" : "active";
+  const historyConditions = [
+    eq(workflows.repositoryId, id),
+    eq(workflows.createdByUserId, session.user.id),
+    selectedArchive === "archived" ? isNotNull(workflows.archivedAt) : isNull(workflows.archivedAt),
+  ];
+  if (historySearch) {
+    const escapedSearch = escapeWorkflowHistorySearch(historySearch);
+    historyConditions.push(ilike(workflows.requirement, `%${escapedSearch}%`));
+  }
+  if (selectedWorkflowStatus !== "all") {
+    historyConditions.push(eq(workflows.status, selectedWorkflowStatus as typeof workflows.$inferSelect.status));
+  }
+  const historyScope = and(...historyConditions);
+  const [{ historyCount }] = await db
+    .select({ historyCount: count() })
+    .from(workflows)
+    .where(historyScope);
+  const historyPages = workflowHistoryPageCount(historyCount, WORKFLOW_PAGE_SIZE);
+  const historyPage = resolveWorkflowHistoryPage(workflowPage, historyCount, WORKFLOW_PAGE_SIZE);
   const recent = await db
     .select({
       id: workflows.id,
@@ -79,9 +135,10 @@ export default async function RepositoryPage({
       createdAt: workflows.createdAt,
     })
     .from(workflows)
-    .where(and(eq(workflows.repositoryId, id), eq(workflows.createdByUserId, session.user.id)))
+    .where(historyScope)
     .orderBy(desc(workflows.createdAt))
-    .limit(10);
+    .limit(WORKFLOW_PAGE_SIZE)
+    .offset((historyPage - 1) * WORKFLOW_PAGE_SIZE);
   const [{ workflowCount }] = await db
     .select({ workflowCount: count() })
     .from(workflows)
@@ -90,6 +147,17 @@ export default async function RepositoryPage({
     .select({ allWorkflowCount: count() })
     .from(workflows)
     .where(eq(workflows.repositoryId, id));
+
+  const historyHref = (page: number) => {
+    const query = new URLSearchParams();
+    if (historySearch) query.set("history", historySearch);
+    if (selectedWorkflowStatus !== "all") query.set("workflowStatus", selectedWorkflowStatus);
+    if (selectedArchive !== "active") query.set("workflowArchive", selectedArchive);
+    if (page > 1) query.set("workflowPage", String(page));
+    if (q) query.set("q", q);
+    const search = query.toString();
+    return `/repositories/${id}${search ? `?${search}` : ""}#workflow-history`;
+  };
 
   const number = new Intl.NumberFormat("en");
   const totalBytes = files.reduce((total, file) => total + file.size, 0);
@@ -242,11 +310,11 @@ export default async function RepositoryPage({
       </div>
 
       <div className="grid gap-10 border-t border-border pt-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(19rem,0.85fr)]">
-        <section aria-labelledby="recent-work-title" className="space-y-4">
+        <section id="workflow-history" aria-labelledby="recent-work-title" className="space-y-4">
           <div className="flex items-end justify-between gap-4">
             <div className="space-y-1">
-              <h2 id="recent-work-title" className="font-heading text-xl font-semibold">Recent work</h2>
-              <p className="text-sm text-muted-foreground">Pick up a requirement already in progress.</p>
+              <h2 id="recent-work-title" className="font-heading text-xl font-semibold">Workflow history</h2>
+              <p className="text-sm text-muted-foreground">Find a requirement and check its current status.</p>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-3">
               {allWorkflowCount > workflowCount && <form action={recoverLegacyWorkflowsAction}>
@@ -255,33 +323,67 @@ export default async function RepositoryPage({
                   Recover previous workflows
                 </AsyncSubmitButton>
               </form>}
-              {recent.length > 0 && <span className="text-sm tabular-nums text-muted-foreground">Latest {recent.length}{recent.length === 10 ? " of more" : ""}</span>}
             </div>
           </div>
+          <WorkflowHistoryFilters
+            key={`${historySearch}:${selectedWorkflowStatus}:${selectedArchive}`}
+            search={historySearch}
+            status={selectedWorkflowStatus}
+            archive={selectedArchive}
+            codeQuery={q ?? ""}
+            statuses={WORKFLOW_STATUSES}
+          />
           {recent.length > 0 ? (
             <ul className="divide-y divide-border border-y border-border">
               {recent.map((workflow) => (
                 <li key={workflow.id}>
-                  <Link href={`/workflows/${workflow.id}`} className="group flex items-center justify-between gap-4 py-4 outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    <span className="min-w-0 space-y-1">
-                      <span className="block line-clamp-2 text-base font-medium leading-6 group-hover:text-primary">{workflow.requirement}</span>
-                      <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><Clock3 aria-hidden="true" className="size-3.5" />{workflow.createdAt.toLocaleDateString("en", { month: "short", day: "numeric" })}</span>
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <Badge variant={workflow.status === "failed" ? "destructive" : workflow.status === "changes_approved" ? "success" : "secondary"}>{workflow.status.replaceAll("_", " ")}</Badge>
-                      <ArrowUpRight aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                    </span>
-                  </Link>
+                  <div className="flex items-center gap-3 py-4">
+                    <Link href={`/workflows/${workflow.id}`} className="group flex min-w-0 flex-1 items-center justify-between gap-4 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <span className="min-w-0 space-y-1">
+                        <span className="block line-clamp-2 text-base font-medium leading-6 group-hover:text-primary">{workflow.requirement}</span>
+                        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><Clock3 aria-hidden="true" className="size-3.5" />{workflow.createdAt.toLocaleDateString("en", { month: "short", day: "numeric" })}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <Badge variant={workflow.status === "failed" ? "destructive" : workflow.status === "changes_approved" ? "success" : "secondary"}>{workflow.status.replaceAll("_", " ")}</Badge>
+                        <ArrowUpRight aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                      </span>
+                    </Link>
+                    <form action={selectedArchive === "archived" ? restoreWorkflowAction : archiveWorkflowAction}>
+                      <input type="hidden" name="repositoryId" value={id} />
+                      <input type="hidden" name="workflowId" value={workflow.id} />
+                      <button type="submit" className="rounded-md px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{selectedArchive === "archived" ? "Restore" : "Archive"}</button>
+                    </form>
+                  </div>
                 </li>
               ))}
             </ul>
-          ) : (
+          ) : historySearch || selectedWorkflowStatus !== "all" ? (
+            <div className="border-y border-dashed border-border py-7">
+              <p className="text-base font-medium">No workflows match these filters</p>
+              <p className="mt-1 text-sm text-muted-foreground">Try another phrase or choose a different status.</p>
+              <Link href={`/repositories/${id}?workflowArchive=${selectedArchive}#workflow-history`} className="mt-3 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline">Clear filters</Link>
+            </div>
+          ) : selectedArchive === "active" && workflowCount === 0 && allWorkflowCount === 0 ? (
             <div className="border-y border-dashed border-border py-7">
               <p className="text-base font-medium">No workflows yet</p>
               <p className="mt-1 text-sm text-muted-foreground">Your first requirement will start this repository’s workflow history.</p>
               <Link href="#requirement" className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary underline-offset-4 hover:underline">Start a requirement <ArrowUpRight aria-hidden="true" className="size-4" /></Link>
             </div>
+          ) : (
+            <div className="border-y border-dashed border-border py-7">
+              <p className="text-base font-medium">No {selectedArchive} workflows in this view</p>
+              <p className="mt-1 text-sm text-muted-foreground">{selectedArchive === "active" ? "Check archived workflows, or start a new requirement." : "Archived workflows keep their history and can be restored."}</p>
+              <Link href={`/repositories/${id}?workflowArchive=${selectedArchive === "active" ? "archived" : "active"}#workflow-history`} className="mt-3 inline-flex text-sm font-medium text-primary underline-offset-4 hover:underline">View {selectedArchive === "active" ? "archived" : "active"} workflows</Link>
+            </div>
           )}
+          {historyCount > 0 && <nav aria-label="Workflow history pages" className="flex flex-wrap items-center justify-between gap-3 pt-1">
+            <p className="text-sm tabular-nums text-muted-foreground">Showing {(historyPage - 1) * WORKFLOW_PAGE_SIZE + 1}–{Math.min(historyPage * WORKFLOW_PAGE_SIZE, historyCount)} of {number.format(historyCount)}</p>
+            <div className="flex items-center gap-2">
+              {historyPage > 1 ? <Link href={historyHref(historyPage - 1)} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Previous</Link> : <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground opacity-50">Previous</span>}
+              <span aria-current="page" className="px-2 text-sm tabular-nums">{historyPage} / {historyPages}</span>
+              {historyPage < historyPages ? <Link href={historyHref(historyPage + 1)} className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">Next</Link> : <span className="inline-flex h-9 items-center rounded-md border border-border px-3 text-sm text-muted-foreground opacity-50">Next</span>}
+            </div>
+          </nav>}
         </section>
 
         <section aria-labelledby="indexed-files-title" className="space-y-4 border-t border-border pt-7 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">

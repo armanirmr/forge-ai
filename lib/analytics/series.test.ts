@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildDecisionDurationSeries, buildWorkflowActivitySeries } from "./series";
+import {
+	buildDecisionDurationSeries,
+	buildRepairFollowUpSeries,
+	buildVerificationOutcomeSeries,
+	buildWorkflowActivitySeries,
+} from "./series";
 
 const now = new Date("2026-10-08T12:00:00.000Z");
 const start = new Date("2026-08-17T00:00:00.000Z");
@@ -37,5 +42,29 @@ describe("analytics time series", () => {
 		expect(daily).toHaveLength(8);
 		expect(monthly).toHaveLength(10);
 		expect(monthly[0].periodStart.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+	});
+
+	it("counts verification outcomes in each selected period", () => {
+		const series = buildVerificationOutcomeSeries([
+			{ status: "passed", createdAt: new Date("2026-10-05T10:00:00.000Z") },
+			{ status: "failed", createdAt: new Date("2026-10-06T10:00:00.000Z") },
+			{ status: "error", createdAt: new Date("2026-09-28T10:00:00.000Z") },
+			{ status: "not_executed", createdAt: new Date("2026-09-28T11:00:00.000Z") },
+		], start, now, "week");
+
+		expect(series.at(-1)).toMatchObject({ passed: 1, failed: 1, error: 0, notExecuted: 0 });
+		expect(series.at(-2)).toMatchObject({ passed: 0, failed: 0, error: 1, notExecuted: 1 });
+	});
+
+	it("calculates follow-up pass rate only from attempts linked to a verification", () => {
+		const series = buildRepairFollowUpSeries([
+			{ createdAt: new Date("2026-10-05T10:00:00.000Z"), verificationStatus: "passed" },
+			{ createdAt: new Date("2026-10-06T10:00:00.000Z"), verificationStatus: "failed" },
+			{ createdAt: new Date("2026-10-06T11:00:00.000Z"), verificationStatus: "error" },
+			{ createdAt: new Date("2026-10-06T12:00:00.000Z"), verificationStatus: null },
+		], start, now, "week");
+
+		expect(series.at(-1)).toMatchObject({ followed: 3, passed: 1, rate: 1 / 3 });
+		expect(series.at(-2)).toMatchObject({ followed: 0, passed: 0, rate: null });
 	});
 });

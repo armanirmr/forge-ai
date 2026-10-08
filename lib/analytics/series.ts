@@ -1,5 +1,7 @@
 export type WorkflowActivityInput = { status: string; createdAt: Date };
 export type DecisionDurationInput = { decidedAt: Date; workflowCreatedAt: Date };
+export type VerificationOutcomeInput = { status: string; createdAt: Date };
+export type RepairFollowUpInput = { createdAt: Date; verificationStatus: string | null };
 export type AnalyticsBucket = "day" | "week" | "month";
 
 export type WorkflowActivityPoint = {
@@ -14,6 +16,21 @@ export type DecisionDurationPoint = {
 	periodStart: Date;
 	averageMs: number | null;
 	sampleCount: number;
+};
+
+export type VerificationOutcomePoint = {
+	periodStart: Date;
+	passed: number;
+	failed: number;
+	error: number;
+	notExecuted: number;
+};
+
+export type RepairFollowUpPoint = {
+	periodStart: Date;
+	followed: number;
+	passed: number;
+	rate: number | null;
 };
 
 function bucketStart(date: Date, bucket: AnalyticsBucket): Date {
@@ -88,5 +105,52 @@ export function buildDecisionDurationSeries(
 		periodStart,
 		averageMs: sampleCount ? totalMs / sampleCount : null,
 		sampleCount,
+	}));
+}
+
+export function buildVerificationOutcomeSeries(
+	rows: VerificationOutcomeInput[],
+	start: Date,
+	end: Date,
+	bucket: AnalyticsBucket,
+): VerificationOutcomePoint[] {
+	const periods = createPeriods(start, end, bucket);
+	const points = periods.map((periodStart) => ({ periodStart, passed: 0, failed: 0, error: 0, notExecuted: 0 }));
+	const statusKeys: Record<string, keyof Omit<VerificationOutcomePoint, "periodStart">> = {
+		passed: "passed",
+		failed: "failed",
+		error: "error",
+		not_executed: "notExecuted",
+	};
+
+	for (const row of rows) {
+		const index = periodIndex(row.createdAt, periods, bucket);
+		const key = statusKeys[row.status];
+		if (index < 0 || !key || row.createdAt < start || row.createdAt > end) continue;
+		points[index][key] += 1;
+	}
+
+	return points;
+}
+
+export function buildRepairFollowUpSeries(
+	rows: RepairFollowUpInput[],
+	start: Date,
+	end: Date,
+	bucket: AnalyticsBucket,
+): RepairFollowUpPoint[] {
+	const periods = createPeriods(start, end, bucket);
+	const points = periods.map((periodStart) => ({ periodStart, followed: 0, passed: 0, rate: null as number | null }));
+
+	for (const row of rows) {
+		const index = periodIndex(row.createdAt, periods, bucket);
+		if (index < 0 || row.createdAt < start || row.createdAt > end || row.verificationStatus === null) continue;
+		points[index].followed += 1;
+		if (row.verificationStatus === "passed") points[index].passed += 1;
+	}
+
+	return points.map((point) => ({
+		...point,
+		rate: point.followed ? point.passed / point.followed : null,
 	}));
 }

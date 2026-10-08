@@ -7,8 +7,14 @@ import { AnalyticsFilters } from "@/components/analytics-filters";
 import { aiRuns, changeApprovals, codeChanges, repairAttempts, repositories, verificationRuns, workflows } from "@/lib/db/schema";
 import { db } from "@/lib/db";
 import { getOwnedWorkflowScope } from "@/lib/security/tenant-access";
-import { buildDecisionDurationSeries, buildWorkflowActivitySeries, type AnalyticsBucket } from "@/lib/analytics/series";
-import { DecisionDurationChart, WorkflowActivityChart } from "./charts";
+import {
+	buildDecisionDurationSeries,
+	buildRepairFollowUpSeries,
+	buildVerificationOutcomeSeries,
+	buildWorkflowActivitySeries,
+	type AnalyticsBucket,
+} from "@/lib/analytics/series";
+import { DecisionDurationChart, RepairFollowUpChart, VerificationOutcomeChart, WorkflowActivityChart } from "./charts";
 
 const number = (value: number | string | null | undefined) => Number(value ?? 0);
 const formatCount = (value: number) => value.toLocaleString();
@@ -76,22 +82,21 @@ export default async function AnalyticsPage({
 		.where(eventScope(aiRuns.createdAt))
 		.groupBy(aiRuns.agent)
 		.orderBy(desc(count()));
-	const repairsByStatus = await db
-		.select({ status: repairAttempts.status, total: count() })
+	const repairRows = await db
+		.select({
+			status: repairAttempts.status,
+			createdAt: repairAttempts.createdAt,
+			verificationStatus: verificationRuns.status,
+		})
 		.from(repairAttempts)
+		.leftJoin(verificationRuns, eq(repairAttempts.resultRunId, verificationRuns.id))
 		.innerJoin(workflows, eq(repairAttempts.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(eventScope(repairAttempts.createdAt))
-		.groupBy(repairAttempts.status);
-	const verificationsByStatus = await db
-		.select({ status: verificationRuns.status, total: count() })
-		.from(verificationRuns)
-		.innerJoin(workflows, eq(verificationRuns.workflowId, workflows.id))
-		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(eventScope(verificationRuns.createdAt))
-		.groupBy(verificationRuns.status);
+		.where(eventScope(repairAttempts.createdAt));
 	const verificationSteps = await db
 		.select({
+			status: verificationRuns.status,
+			createdAt: verificationRuns.createdAt,
 			testSteps: sql<string[]>`jsonb_path_query_array(${verificationRuns.result}, '$.steps[*].name')`,
 		})
 		.from(verificationRuns)
@@ -147,10 +152,14 @@ export default async function AnalyticsPage({
 		.orderBy(desc(aiRuns.createdAt))
 		.limit(10);
 
-	const repairs = Object.fromEntries(repairsByStatus.map((row) => [row.status, number(row.total)]));
-	const verificationCounts = Object.fromEntries(
-		verificationsByStatus.map((row) => [row.status, number(row.total)]),
-	);
+	const repairs = Object.fromEntries(["accepted", "rejected", "stopped"].map((status) => [
+		status,
+		repairRows.filter((row) => row.status === status).length,
+	]));
+	const verificationCounts = Object.fromEntries(["passed", "failed", "error", "not_executed"].map((status) => [
+		status,
+		verificationSteps.filter((row) => row.status === status).length,
+	]));
 	const approved = decisions.filter((row) => row.decision === "approved").length;
 	const rejected = decisions.filter((row) => row.decision === "rejected").length;
 	const decided = approved + rejected;
@@ -162,6 +171,8 @@ export default async function AnalyticsPage({
 		decidedAt: row.decidedAt,
 		workflowCreatedAt: row.workflowCreatedAt,
 	})), rangeStart, rangeEnd, chartBucket);
+	const verificationOutcomes = buildVerificationOutcomeSeries(verificationSteps, rangeStart, rangeEnd, chartBucket);
+	const repairFollowUps = buildRepairFollowUpSeries(repairRows, rangeStart, rangeEnd, chartBucket);
 	const averageDurationMs = durations.length
 		? durations.reduce((total, value) => total + value, 0) / durations.length
 		: null;
@@ -214,6 +225,11 @@ export default async function AnalyticsPage({
 			<section aria-label="Workflow trends" className="grid min-w-0 gap-6 lg:grid-cols-2">
 				<WorkflowActivityChart data={workflowActivity} bucket={chartBucket} rangeLabel={rangeLabel} />
 				<DecisionDurationChart data={decisionDurations} bucket={chartBucket} rangeLabel={rangeLabel} />
+			</section>
+
+			<section aria-label="Verification and repair outcomes" className="grid min-w-0 gap-6 lg:grid-cols-2">
+				<VerificationOutcomeChart data={verificationOutcomes} bucket={chartBucket} rangeLabel={rangeLabel} />
+				<RepairFollowUpChart data={repairFollowUps} bucket={chartBucket} rangeLabel={rangeLabel} />
 			</section>
 
 			<section className="grid gap-6 lg:grid-cols-2">

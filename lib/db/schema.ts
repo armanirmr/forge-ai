@@ -145,6 +145,7 @@ export const workflows = pgTable("workflows", {
 			"changes_rejected",
 		],
 	}).notNull(),
+	archivedAt: timestamp("archived_at", { withTimezone: true }),
 	error: text("error"),
 	createdAt: createdAt(),
 	updatedAt: timestamp("updated_at", { withTimezone: true })
