@@ -2,57 +2,21 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { auth } from "@/auth";
 import { importRepository } from "@/lib/repository/ingest";
 import { getGitHubAccessToken } from "@/lib/github/access-token";
-import { githubClient } from "@/lib/github/client";
 import { db } from "@/lib/db";
-import { repositories, workflows } from "@/lib/db/schema";
+import { repositories } from "@/lib/db/schema";
 import { requireAISetup } from "@/lib/ai/setup-status";
 import { getOwnedRepository } from "@/lib/security/tenant-access";
+import { verifyPersonalRepositoryOwner } from "@/lib/security/verified-github-repository";
+import { recoverLegacyWorkflowCreators } from "@/lib/security/legacy-workflow-recovery";
 
 const Input = z.object({
 	owner: z.string().regex(/^[A-Za-z0-9_.-]+$/),
 	name: z.string().regex(/^[A-Za-z0-9_.-]+$/),
 });
-
-async function verifyPersonalRepositoryOwner(
-	token: string,
-	repository: { githubRepoId: number; owner: string; name: string },
-	sessionDisplayName?: string | null,
-) {
-	const octokit = githubClient(token);
-	const [{ data: viewer }, { data: githubRepo }] = await Promise.all([
-		octokit.rest.users.getAuthenticated(),
-		octokit.rest.repos.get({ owner: repository.owner, repo: repository.name }),
-	]);
-	if (githubRepo.id !== repository.githubRepoId) {
-		throw new Error("GitHub reports a different repository ID. Import it as a new workspace.");
-	}
-	if (
-		githubRepo.owner.type !== "User" ||
-		githubRepo.owner.id !== viewer.id ||
-		githubRepo.owner.login.toLowerCase() !== viewer.login.toLowerCase() ||
-		githubRepo.owner.login.toLowerCase() !== repository.owner.toLowerCase()
-	) {
-		throw new Error("GitHub did not confirm this personal repository as yours.");
-	}
-	return [...new Set([viewer.login, viewer.name, repository.owner, sessionDisplayName]
-		.filter((label): label is string => Boolean(label?.trim()))
-		.map((label) => label.trim()))];
-}
-
-async function recoverWorkflowCreators(repositoryId: string, userId: string, legacyLabels: string[]) {
-	const recovered = await db.update(workflows)
-		.set({ createdByUserId: userId })
-		.where(and(
-			eq(workflows.repositoryId, repositoryId),
-			inArray(workflows.createdByUserId, legacyLabels),
-		))
-		.returning({ id: workflows.id });
-	return recovered.length;
-}
 
 export async function importRepositoryAction(formData: FormData) {
 	const session = await auth();
@@ -118,7 +82,7 @@ export async function restoreLegacyRepositoryAction(formData: FormData) {
 		))
 		.returning({ id: repositories.id });
 	if (!claimed) redirect("/repositories?error=This+workspace+was+already+restored");
-	const recovered = await recoverWorkflowCreators(claimed.id, session.user.id, legacyLabels);
+	const recovered = await recoverLegacyWorkflowCreators(claimed.id, session.user.id, legacyLabels);
 	redirect(`/repositories/${claimed.id}?restored=1&recovered=${recovered}`);
 }
 
@@ -139,7 +103,7 @@ export async function recoverLegacyWorkflowsAction(formData: FormData) {
 		const message = error instanceof Error ? error.message : "Could not verify the GitHub repository owner";
 		redirect(`/repositories/${repositoryId.data}?error=${encodeURIComponent(message)}`);
 	}
-	const recovered = await recoverWorkflowCreators(repository.id, session.user.id, legacyLabels);
+	const recovered = await recoverLegacyWorkflowCreators(repository.id, session.user.id, legacyLabels);
 	if (recovered === 0) {
 		redirect(`/repositories/${repository.id}?error=No+workflows+matched+your+verified+GitHub+profile`);
 	}

@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/lib/db", () => ({ db: { select: mocks.select } }));
 
-import { getOwnedRepository, getOwnedWorkflow } from "./tenant-access";
+import { getOwnedRepository, getOwnedWorkflow, getOwnedWorkflowScope } from "./tenant-access";
 
 const dialect = new PgDialect();
 
@@ -28,6 +28,8 @@ describe("tenant access queries", () => {
 		await expect(getOwnedRepository("repo-1", "user-1")).resolves.toBeNull();
 		const query = dialect.sqlToQuery(mocks.where.mock.calls[0][0]);
 		expect(query.sql).toContain('"owner_user_id"');
+		expect(query.sql).toContain('"id" = $1');
+		expect(query.sql).toContain('"owner_user_id" = $2');
 		expect(query.params).toEqual(["repo-1", "user-1"]);
 	});
 
@@ -37,5 +39,12 @@ describe("tenant access queries", () => {
 		expect(query.sql).toContain('"owner_user_id"');
 		expect(query.sql).toContain('"created_by_user_id"');
 		expect(query.params).toEqual(["workflow-1", "user-1", "user-1"]);
+	});
+
+	it("scopes analytics to both the repository owner and workflow creator", () => {
+		const query = dialect.sqlToQuery(getOwnedWorkflowScope("user-1")!);
+		expect(query.sql).toContain('"owner_user_id" = $1');
+		expect(query.sql).toContain('"created_by_user_id" = $2');
+		expect(query.params).toEqual(["user-1", "user-1"]);
 	});
 });

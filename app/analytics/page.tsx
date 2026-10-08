@@ -1,9 +1,10 @@
-import { and, count, desc, eq, sql, sum } from "drizzle-orm";
+import { count, desc, eq, sql, sum } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { ProductHeader } from "@/components/product-header";
 import { aiRuns, changeApprovals, codeChanges, repairAttempts, repositories, verificationRuns, workflows } from "@/lib/db/schema";
 import { db } from "@/lib/db";
+import { getOwnedWorkflowScope } from "@/lib/security/tenant-access";
 
 const number = (value: number | string | null | undefined) => Number(value ?? 0);
 const formatCount = (value: number) => value.toLocaleString();
@@ -17,10 +18,7 @@ export default async function AnalyticsPage() {
 	const session = await auth();
 	if (!session) redirect("/");
 	const userId = session.user.id;
-	const ownerScope = and(
-		eq(repositories.ownerUserId, userId),
-		eq(workflows.createdByUserId, userId),
-	);
+	const ownerScope = getOwnedWorkflowScope(userId);
 
 	const runCount = count();
 	const [runTotals] = await db

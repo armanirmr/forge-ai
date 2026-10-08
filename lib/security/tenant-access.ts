@@ -3,6 +3,13 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { repositories, workflows } from "@/lib/db/schema";
 
+export function getOwnedWorkflowScope(userId: string) {
+	return and(
+		eq(repositories.ownerUserId, userId),
+		eq(workflows.createdByUserId, userId),
+	);
+}
+
 export async function getOwnedRepository(repositoryId: string, userId: string) {
 	const [repository] = await db
 		.select()

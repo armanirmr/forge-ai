@@ -8,7 +8,7 @@ web
 
 ## Users
 
-Individual developers tracking repository workflows and team leads or reviewers supervising AI-generated changes. While a workflow runs, users need to understand its current state and what the AI is doing.
+Individual developers managing their own connected repositories and AI-assisted workflows. While a workflow runs, users need to understand its current state and what the AI is doing.
 
 ## Product Purpose
 
@@ -25,6 +25,7 @@ Users connect GitHub repositories, submit requirements, review generated analyse
 ## Capabilities and Constraints
 
 - Next.js App Router, TypeScript, Tailwind, shadcn/ui, PostgreSQL with Drizzle, Auth.js (GitHub), Zod, and Vitest.
+- ForgeAI is for individual accounts for now. Repositories and workflows belong to one signed-in account; shared team workspaces and member roles are out of scope.
 - Existing workflow actions and authorization behavior must remain intact during the workflow-screen redesign.
 - Clear live feedback for AI work is a primary design goal.
 - The product supports repository indexing and retrieval, workflow verification and repair, advisory AI reviews, and analytics, as documented in README.md.
