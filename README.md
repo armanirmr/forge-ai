@@ -4,7 +4,7 @@ An AI-assisted software delivery tool: it turns a requirement into a validated a
 
 ## Status
 
-Milestone 5B complete. Milestone 6 implementation is in progress: approved edits can be published as a pull request to a public GitHub repository after current verification, edit hash, permission, and remote-file checks. ForgeAI never merges the PR. Embeddings are not implemented.
+Milestones 5B and 6 are complete; the public-repository PR flow was validated with a merged PR. Phase 3 Repository Intelligence is complete: Gemini Embedding 2, pgvector storage, hybrid semantic and keyword retrieval, and repository search. Existing repositories must be re-indexed after applying migrations. Next planned work: Phase 9, the Code Reviewer.
 
 ## Stack
 
@@ -43,8 +43,9 @@ Set in `.env.local`:
 | `AI_MODEL`         | Model id, for example `openai/gpt-oss-20b` on Groq         |
 | `AI_BASE_URL`      | Optional, overrides the Groq endpoint                      |
 | `AI_STRICT_SCHEMA` | Set to `false` to disable strict structured output on Groq |
+| `EMBEDDING_API_KEY` | Google AI Studio key for Gemini Embedding 2; optional when `AI_PROVIDER=gemini` because `AI_API_KEY` is reused |
 
-Repository snippets are redacted for secrets before they are sent to the provider. Free tiers may use prompts to improve the provider's products, so use public repositories only.
+Repository snippets are redacted for secrets before they are sent to AI providers. Embeddings use Gemini Embedding 2 at 768 dimensions. Free tiers may use prompts to improve providers' products, so use public repositories only. Re-import a repository from its detail page to build or refresh its semantic index.
 
 ## Scripts
 

@@ -1,6 +1,7 @@
-import { and, asc, desc, eq, gt, sql } from "drizzle-orm";
+import { and, asc, cosineDistance, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { codeChunks, repositoryFiles } from "@/lib/db/schema";
+import { embedCodeQuery, EMBEDDING_MODEL } from "./embeddings";
 
 const STOPWORDS = new Set([
 	"the",
@@ -82,42 +83,76 @@ export async function retrieveContext(
 		.orderBy(asc(repositoryFiles.path));
 	const fileTree = paths.slice(0, maxTreeEntries).map((p) => p.path);
 
-	if (keywords.length === 0) {
-		return { keywords, snippets: [], fileTree, fileTreeTotal: paths.length };
-	}
-
-	const contentScore = sql.join(
-		keywords.map(
-			(k) =>
-				sql`(case when strpos(lower(${codeChunks.content}), ${k}) > 0 then 1 else 0 end)`,
-		),
-		sql` + `,
-	);
-	const pathScore = sql.join(
-		keywords.map(
-			(k) =>
-				sql`(case when strpos(lower(${repositoryFiles.path}), ${k}) > 0 then 2 else 0 end)`,
-		),
-		sql` + `,
-	);
-	const score = sql<number>`(${contentScore}) + (${pathScore})`;
-
-	const rows = await db
+	const queryVector = await embedCodeQuery(requirement);
+	const distance = cosineDistance(codeChunks.embedding, queryVector);
+	const semanticRows = await db
 		.select({
 			path: repositoryFiles.path,
 			startLine: codeChunks.startLine,
 			endLine: codeChunks.endLine,
 			content: codeChunks.content,
-			score: score.mapWith(Number),
 		})
 		.from(codeChunks)
-		.innerJoin(
-			repositoryFiles,
-			eq(codeChunks.repositoryFileId, repositoryFiles.id),
+		.innerJoin(repositoryFiles, eq(codeChunks.repositoryFileId, repositoryFiles.id))
+		.where(
+			and(
+				eq(repositoryFiles.repositoryId, repositoryId),
+				eq(codeChunks.embeddingModel, EMBEDDING_MODEL),
+				isNotNull(codeChunks.embedding),
+			),
 		)
-		.where(and(eq(repositoryFiles.repositoryId, repositoryId), gt(score, 0)))
-		.orderBy(desc(score), asc(repositoryFiles.path), asc(codeChunks.startLine))
-		.limit(limit);
+		.orderBy(distance, asc(repositoryFiles.path), asc(codeChunks.startLine))
+		.limit(limit * 4);
 
-	return { keywords, snippets: rows, fileTree, fileTreeTotal: paths.length };
+	let keywordRows: RetrievedSnippet[] = [];
+	if (keywords.length > 0) {
+		const contentScore = sql.join(
+			keywords.map(
+				(k) =>
+					sql`(case when strpos(lower(${codeChunks.content}), ${k}) > 0 then 1 else 0 end)`,
+			),
+			sql` + `,
+		);
+		const pathScore = sql.join(
+			keywords.map(
+				(k) =>
+					sql`(case when strpos(lower(${repositoryFiles.path}), ${k}) > 0 then 2 else 0 end)`,
+			),
+			sql` + `,
+		);
+		const score = sql<number>`(${contentScore}) + (${pathScore})`;
+		keywordRows = await db
+			.select({
+				path: repositoryFiles.path,
+				startLine: codeChunks.startLine,
+				endLine: codeChunks.endLine,
+				content: codeChunks.content,
+				score: score.mapWith(Number),
+			})
+			.from(codeChunks)
+			.innerJoin(repositoryFiles, eq(codeChunks.repositoryFileId, repositoryFiles.id))
+			.where(and(eq(repositoryFiles.repositoryId, repositoryId), gt(score, 0)))
+			.orderBy(desc(score), asc(repositoryFiles.path), asc(codeChunks.startLine))
+			.limit(limit * 4);
+	}
+
+	// Reciprocal rank fusion combines semantic similarity with exact keyword/path hits.
+	const fused = new Map<string, RetrievedSnippet>();
+	const addRanked = (rows: Omit<RetrievedSnippet, "score">[], weight: number) => {
+		rows.forEach((row, index) => {
+			const key = `${row.path}\0${row.startLine}\0${row.endLine}`;
+			const prior = fused.get(key);
+			fused.set(key, {
+				...row,
+				score: (prior?.score ?? 0) + weight / (60 + index + 1),
+			});
+		});
+	};
+	addRanked(semanticRows, 1);
+	addRanked(keywordRows, 0.7);
+	const snippets = [...fused.values()]
+		.sort((a, b) => b.score - a.score || a.path.localeCompare(b.path) || a.startLine - b.startLine)
+		.slice(0, limit);
+
+	return { keywords, snippets, fileTree, fileTreeTotal: paths.length };
 }

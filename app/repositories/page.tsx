@@ -3,6 +3,7 @@ import { auth, signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { listOwnedRepos } from "@/lib/github/client";
 import { importRepositoryAction } from "./actions";
+import { getGitHubAccessToken } from "@/lib/github/access-token";
 
 export default async function RepositoriesPage({
   searchParams,
@@ -10,13 +11,15 @@ export default async function RepositoriesPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const session = await auth();
-  if (!session?.accessToken) redirect("/");
+  if (!session) redirect("/");
+  const accessToken = await getGitHubAccessToken();
+  if (!accessToken) redirect("/");
   const { error } = await searchParams;
 
   let repos: Awaited<ReturnType<typeof listOwnedRepos>> = [];
   let listError: string | null = null;
   try {
-    repos = await listOwnedRepos(session.accessToken);
+    repos = await listOwnedRepos(accessToken);
   } catch (e) {
     listError = e instanceof Error ? e.message : "Could not list repositories";
   }

@@ -7,8 +7,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 		GitHub({
 			clientId: process.env.GITHUB_CLIENT_ID,
 			clientSecret: process.env.GITHUB_CLIENT_SECRET,
-			// Least privilege for now: read public repos. PR creation (Phase 11)
-			// will require a broader scope, which we'll request deliberately then.
+			// Public-repository access supports imports and PRs. Private repositories
+			// are not enabled because they would require the broader `repo` scope.
 			authorization: { params: { scope: "read:user public_repo" } },
 		}),
 	],

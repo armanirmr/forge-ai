@@ -8,7 +8,9 @@ import {
 	timestamp,
 	unique,
 	index,
+	vector,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const createdAt = () =>
 	timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -45,8 +47,6 @@ export const repositoryFiles = pgTable(
 	(t) => [unique("repository_files_repo_path_uq").on(t.repositoryId, t.path)],
 );
 
-// NOTE: no embedding column yet. It is added in the pgvector phase,
-// once the embedding model (and therefore vector dimension) is chosen.
 export const codeChunks = pgTable(
 	"code_chunks",
 	{
@@ -57,12 +57,19 @@ export const codeChunks = pgTable(
 		content: text("content").notNull(),
 		startLine: integer("start_line").notNull(),
 		endLine: integer("end_line").notNull(),
+		embedding: vector("embedding", { dimensions: 768 }),
+		embeddingModel: text("embedding_model"),
 		metadata: jsonb("metadata")
 			.$type<Record<string, unknown>>()
 			.notNull()
 			.default({}),
 	},
-	(t) => [index("code_chunks_file_idx").on(t.repositoryFileId)],
+	(t) => [
+		index("code_chunks_file_idx").on(t.repositoryFileId),
+		index("code_chunks_embedding_hnsw_idx")
+			.using("hnsw", t.embedding.op("vector_cosine_ops"))
+			.where(sql`${t.embedding} is not null`),
+	],
 );
 
 // projectId / workflowId have no FK yet: those tables arrive in Milestone 1.

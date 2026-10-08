@@ -5,9 +5,11 @@ import { githubClient } from "@/lib/github/client";
 import { shouldIndexFile } from "./ignore";
 import { chunkLines } from "./chunk";
 import { detectLanguage } from "./language";
+import { embedCodeDocuments, EMBEDDING_MODEL } from "./embeddings";
 import { eq } from "drizzle-orm";
 
 export const MAX_FILES = 500;
+export const MAX_EMBEDDING_CHUNKS = 10_000;
 const FETCH_CONCURRENCY = 10;
 const INSERT_BATCH = 200;
 
@@ -73,6 +75,23 @@ export async function importRepository(
 		}
 	}
 
+	const preparedChunks = fetched.flatMap((file) =>
+		chunkLines(file.content).map((chunk) => ({ file, chunk })),
+	);
+	if (preparedChunks.length > MAX_EMBEDDING_CHUNKS) {
+		throw new Error(
+			`Repository has ${preparedChunks.length} code chunks; the import limit is ${MAX_EMBEDDING_CHUNKS}. Increase chunk size or import fewer files.`,
+		);
+	}
+	const vectors = await embedCodeDocuments(
+		preparedChunks.map(({ file, chunk }) => ({
+			path: file.path,
+			startLine: chunk.startLine,
+			endLine: chunk.endLine,
+			content: chunk.content,
+		})),
+	);
+
 	return db.transaction(async (tx) => {
 		const [row] = await tx
 			.insert(repositories)
@@ -119,14 +138,14 @@ export async function importRepository(
 			for (const r of inserted) pathToId.set(r.path, r.id);
 		}
 
-		const chunkRows = fetched.flatMap((f) =>
-			chunkLines(f.content).map((c) => ({
-				repositoryFileId: pathToId.get(f.path)!,
-				content: c.content,
-				startLine: c.startLine,
-				endLine: c.endLine,
-			})),
-		);
+		const chunkRows = preparedChunks.map(({ file, chunk }, i) => ({
+			repositoryFileId: pathToId.get(file.path)!,
+			content: chunk.content,
+			startLine: chunk.startLine,
+			endLine: chunk.endLine,
+			embedding: vectors[i],
+			embeddingModel: EMBEDDING_MODEL,
+		}));
 		for (let i = 0; i < chunkRows.length; i += INSERT_BATCH) {
 			await tx.insert(codeChunks).values(chunkRows.slice(i, i + INSERT_BATCH));
 		}
@@ -136,6 +155,7 @@ export async function importRepository(
 			filesIndexed: fetched.length,
 			filesSkippedBinaryContent: skippedBinary,
 			chunks: chunkRows.length,
+			embeddedChunks: vectors.length,
 			partial,
 		};
 	});
