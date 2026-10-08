@@ -1,3 +1,6 @@
+"use client";
+
+import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import type {
 	AnalyticsBucket,
 	DecisionDurationPoint,
@@ -5,7 +8,8 @@ import type {
 	VerificationOutcomePoint,
 	WorkflowActivityPoint,
 } from "@/lib/analytics/series";
-import type { ReactNode } from "react";
+import type { ReactElement, ReactNode } from "react";
+import { HelpTooltip } from "@/components/ui/tooltip";
 
 const chartColors = {
 	active: "var(--chart-1)",
@@ -34,15 +38,31 @@ function showPeriodLabel(index: number, count: number, bucket: AnalyticsBucket) 
 	return index % (bucket === "day" ? 5 : 2) === 0;
 }
 
-function ChartPanel({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+function ChartPanel({ title, description, help, children }: { title: string; description: string; help: string; children: ReactNode }) {
 	return (
 		<section className="min-w-0 space-y-3 rounded-lg border border-border bg-card p-4 sm:p-5">
 			<div>
-				<h2 className="font-semibold">{title}</h2>
+				<div className="flex items-center gap-1.5"><h2 className="font-semibold">{title}</h2><HelpTooltip label={`About ${title}`}>{help}</HelpTooltip></div>
 				<p className="mt-1 text-sm text-muted-foreground">{description}</p>
 			</div>
 			{children}
 		</section>
+	);
+}
+
+function ChartDatumTooltip({ label, children }: { label: string; children: ReactElement }) {
+	return (
+		<TooltipPrimitive.Root>
+			<TooltipPrimitive.Trigger render={children} aria-label={label} />
+			<TooltipPrimitive.Portal>
+				<TooltipPrimitive.Positioner sideOffset={8}>
+					<TooltipPrimitive.Popup className="z-50 max-w-72 rounded-md border border-border bg-popover px-3 py-2 text-left text-xs font-medium leading-5 text-popover-foreground shadow-lg shadow-foreground/10 outline-none data-[starting-style]:opacity-0 data-[starting-style]:-translate-y-1 data-[ending-style]:opacity-0 data-[ending-style]:-translate-y-1 transition duration-150">
+						<TooltipPrimitive.Arrow className="relative block h-1.5 w-3 overflow-clip data-[side=bottom]:top-[-6px] data-[side=left]:right-[-9px] data-[side=left]:rotate-90 data-[side=right]:left-[-9px] data-[side=right]:-rotate-90 data-[side=top]:bottom-[-6px] data-[side=top]:rotate-180 before:absolute before:bottom-0 before:left-1/2 before:h-[calc(6px*sqrt(2))] before:w-[calc(6px*sqrt(2))] before:translate-x-[-50%] before:translate-y-[50%] before:rotate-45 before:border before:border-border before:bg-popover before:content-['']" />
+						{label}
+					</TooltipPrimitive.Popup>
+				</TooltipPrimitive.Positioner>
+			</TooltipPrimitive.Portal>
+		</TooltipPrimitive.Root>
 	);
 }
 
@@ -59,7 +79,7 @@ export function WorkflowActivityChart({ data, bucket, rangeLabel }: { data: Work
 	const barWidth = Math.min(38, slotWidth * 0.58);
 
 	return (
-		<ChartPanel title="Workflows over time" description={`Workflows created per ${bucket}, grouped by their current state. ${rangeLabel}`}>
+		<ChartPanel title="Workflows over time" description={`Workflows created per ${bucket}, grouped by their current state. ${rangeLabel}`} help="Each bar counts workflows by creation date. Colors show the workflow’s current state now, not the state it had at the time. Cancelled, rejected, and failed workflows are grouped as closed.">
 			{total === 0 ? <ChartEmpty>No workflows were created during this period.</ChartEmpty> : (
 				<>
 					<div role="img" aria-label={`Stacked chart of ${numberLabel(total)} workflows by ${bucket} and current state`}>
@@ -77,7 +97,7 @@ export function WorkflowActivityChart({ data, bucket, rangeLabel }: { data: Work
 										const height = point[key] / axisMax * plotHeight;
 										const y = plot.bottom - offset - height;
 										offset += height;
-										return height > 0 ? <rect key={key} x={x} y={y} width={barWidth} height={height} fill={chartColors[key]}><title>{`${periodLabel(point.periodStart, bucket)}: ${point[key]} ${labels[key].toLowerCase()}`}</title></rect> : null;
+						return height > 0 ? <ChartDatumTooltip key={key} label={`${periodLabel(point.periodStart, bucket)}: ${point[key]} ${labels[key].toLowerCase()}`}><rect x={x} y={y} width={barWidth} height={height} fill={chartColors[key]} tabIndex={0} className="outline-none focus-visible:stroke-foreground focus-visible:stroke-2" /></ChartDatumTooltip> : null;
 									})}
 									{showPeriodLabel(index, data.length, bucket) && <text x={x + barWidth / 2} y={plot.bottom + 22} textAnchor="middle" fill="var(--muted-foreground)" fontSize="15">{periodLabel(point.periodStart, bucket)}</text>}
 								</g>;
@@ -106,7 +126,7 @@ export function VerificationOutcomeChart({ data, bucket, rangeLabel }: { data: V
 	const barWidth = Math.min(38, slotWidth * 0.58);
 
 	return (
-		<ChartPanel title="Verification outcomes" description={`Verification runs by ${bucket}. ${rangeLabel}`}>
+		<ChartPanel title="Verification outcomes" description={`Verification runs by ${bucket}. ${rangeLabel}`} help="Each segment is a recorded verification run, grouped by when it ran. A workflow can have multiple runs. “Not executed” means no runnable verification script was available.">
 			{total === 0 ? <ChartEmpty>No verification runs were recorded during this period.</ChartEmpty> : (
 				<>
 					<div role="img" aria-label={`Stacked chart of ${numberLabel(total)} verification runs by ${bucket} and outcome`}>
@@ -124,7 +144,7 @@ export function VerificationOutcomeChart({ data, bucket, rangeLabel }: { data: V
 										const height = point[key] / axisMax * plotHeight;
 										const y = plot.bottom - offset - height;
 										offset += height;
-										return height > 0 ? <rect key={key} x={x} y={y} width={barWidth} height={height} fill={verificationColors[key]}><title>{`${periodLabel(point.periodStart, bucket)}: ${point[key]} ${labels[key].toLowerCase()}`}</title></rect> : null;
+						return height > 0 ? <ChartDatumTooltip key={key} label={`${periodLabel(point.periodStart, bucket)}: ${point[key]} ${labels[key].toLowerCase()}`}><rect x={x} y={y} width={barWidth} height={height} fill={verificationColors[key]} tabIndex={0} className="outline-none focus-visible:stroke-foreground focus-visible:stroke-2" /></ChartDatumTooltip> : null;
 									})}
 									{showPeriodLabel(index, data.length, bucket) && <text x={x + barWidth / 2} y={plot.bottom + 22} textAnchor="middle" fill="var(--muted-foreground)" fontSize="15">{periodLabel(point.periodStart, bucket)}</text>}
 								</g>;
@@ -153,7 +173,7 @@ export function RepairFollowUpChart({ data, bucket, rangeLabel }: { data: Repair
 	});
 
 	return (
-		<ChartPanel title="Repairs followed by a pass" description={`Share of repair attempts with a linked verification that passed, by ${bucket}. ${rangeLabel}`}>
+		<ChartPanel title="Repairs followed by a pass" description={`Share of repair attempts with a linked verification that passed, by ${bucket}. ${rangeLabel}`} help="The line is passed follow-up verifications divided by repair attempts with a linked follow-up. Attempts without a recorded follow-up are excluded; each point is grouped by repair date.">
 			{populated.length === 0 ? <ChartEmpty>No repair attempts with a follow-up verification were recorded during this period.</ChartEmpty> : (
 				<>
 					<div role="img" aria-label={`Line chart showing the share of repair attempts followed by passing verification, by ${bucket}`}>
@@ -166,7 +186,7 @@ export function RepairFollowUpChart({ data, bucket, rangeLabel }: { data: Repair
 							{data.map((point, index) => {
 								const x = plot.left + index * slotWidth;
 								return <g key={point.periodStart.toISOString()}>
-									{point.rate !== null && <><circle cx={x} cy={pointY(point.rate)} r="5" fill="var(--card)" stroke="var(--success)" strokeWidth="2.5"><title>{`${periodLabel(point.periodStart, bucket)}: ${Math.round(point.rate * 100)}%, ${point.passed} of ${point.followed} follow-up verifications passed`}</title></circle>{showPeriodLabel(index, data.length, bucket) && <text x={x} y={plot.bottom + 40} textAnchor="middle" fill="var(--muted-foreground)" fontSize="12">n={point.followed}</text>}</>}
+									{point.rate !== null && <><ChartDatumTooltip label={`${periodLabel(point.periodStart, bucket)}: ${Math.round(point.rate * 100)}%, ${point.passed} of ${point.followed} follow-up verifications passed`}><circle cx={x} cy={pointY(point.rate)} r="5" fill="var(--card)" stroke="var(--success)" strokeWidth="2.5" tabIndex={0} className="outline-none focus-visible:stroke-foreground" /></ChartDatumTooltip>{showPeriodLabel(index, data.length, bucket) && <text x={x} y={plot.bottom + 40} textAnchor="middle" fill="var(--muted-foreground)" fontSize="12">n={point.followed}</text>}</>}
 									{showPeriodLabel(index, data.length, bucket) && <text x={x} y={plot.bottom + 22} textAnchor="middle" fill="var(--muted-foreground)" fontSize="15">{periodLabel(point.periodStart, bucket)}</text>}
 								</g>;
 							})}
@@ -200,7 +220,7 @@ export function DecisionDurationChart({ data, bucket, rangeLabel }: { data: Deci
 	});
 
 	return (
-		<ChartPanel title="Time to decision" description={`Average time from workflow creation to approval or rejection, by ${bucket}. ${rangeLabel}`}>
+		<ChartPanel title="Time to decision" description={`Average time from workflow creation to approval or rejection, by ${bucket}. ${rangeLabel}`} help="Each point averages the full time from workflow creation to human approval or rejection. Decisions are grouped by decision date, so a workflow may have started before this selected range. Points show their sample count.">
 			{populated.length === 0 ? <ChartEmpty>No approval or rejection decisions were recorded during this period.</ChartEmpty> : (
 				<>
 					<div role="img" aria-label={`Line chart of average time from workflow creation to human decision, by ${bucket}, with sample counts`}>
@@ -213,7 +233,7 @@ export function DecisionDurationChart({ data, bucket, rangeLabel }: { data: Deci
 							{data.map((point, index) => {
 								const x = plot.left + index * slotWidth;
 								return <g key={point.periodStart.toISOString()}>
-									{point.averageMs !== null && <><circle cx={x} cy={pointY(point.averageMs)} r="5" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5"><title>{`${periodLabel(point.periodStart, bucket)}: ${formatDuration(point.averageMs)} average, ${point.sampleCount} decisions`}</title></circle>{showPeriodLabel(index, data.length, bucket) && <text x={x} y={plot.bottom + 40} textAnchor="middle" fill="var(--muted-foreground)" fontSize="12">n={point.sampleCount}</text>}</>}
+									{point.averageMs !== null && <><ChartDatumTooltip label={`${periodLabel(point.periodStart, bucket)}: ${formatDuration(point.averageMs)} average, ${point.sampleCount} decisions`}><circle cx={x} cy={pointY(point.averageMs)} r="5" fill="var(--card)" stroke="var(--primary)" strokeWidth="2.5" tabIndex={0} className="outline-none focus-visible:stroke-foreground" /></ChartDatumTooltip>{showPeriodLabel(index, data.length, bucket) && <text x={x} y={plot.bottom + 40} textAnchor="middle" fill="var(--muted-foreground)" fontSize="12">n={point.sampleCount}</text>}</>}
 									{showPeriodLabel(index, data.length, bucket) && <text x={x} y={plot.bottom + 22} textAnchor="middle" fill="var(--muted-foreground)" fontSize="15">{periodLabel(point.periodStart, bucket)}</text>}
 								</g>;
 							})}

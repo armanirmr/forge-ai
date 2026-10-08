@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { ProductHeader } from "@/components/product-header";
 import { AnalyticsFilters } from "@/components/analytics-filters";
+import { HelpTooltip } from "@/components/ui/tooltip";
 import { aiRuns, changeApprovals, codeChanges, repairAttempts, repositories, verificationRuns, workflows } from "@/lib/db/schema";
 import { db } from "@/lib/db";
 import { getOwnedWorkflowScope } from "@/lib/security/tenant-access";
@@ -14,17 +15,12 @@ import {
 	buildWorkflowActivitySeries,
 	type AnalyticsBucket,
 } from "@/lib/analytics/series";
+import { analyticsRanges, resolveAnalyticsDateRange } from "@/lib/analytics/date-range";
 import { DecisionDurationChart, RepairFollowUpChart, VerificationOutcomeChart, WorkflowActivityChart } from "./charts";
 
 const number = (value: number | string | null | undefined) => Number(value ?? 0);
 const formatCount = (value: number) => value.toLocaleString();
 const formatTokens = (value: number) => value.toLocaleString();
-const rangeOptions = [
-	{ value: "30d", label: "Last 30 days", days: 30, bucket: "day" },
-	{ value: "90d", label: "Last 90 days", days: 90, bucket: "week" },
-	{ value: "365d", label: "Last 12 months", days: 365, bucket: "month" },
-] as const;
-
 function isTestPath(path: string): boolean {
 	return /(?:^|[\\/])(?:tests?|__tests__)(?:[\\/]|$)|\.(?:test|spec)\.[^\\/]+$/i.test(path);
 }
@@ -32,17 +28,17 @@ function isTestPath(path: string): boolean {
 export default async function AnalyticsPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ range?: string; repository?: string }>;
+	searchParams: Promise<{ range?: string; repository?: string; from?: string; to?: string }>;
 }) {
 	const session = await auth();
 	if (!session) redirect("/");
 	const userId = session.user.id;
 	const ownerScope = getOwnedWorkflowScope(userId);
 	const query = await searchParams;
-	const range = rangeOptions.find((option) => option.value === query.range) ?? rangeOptions[1];
-	const rangeEnd = new Date();
-	const rangeStart = new Date(rangeEnd.getTime() - range.days * 24 * 60 * 60 * 1000);
-	const chartBucket: AnalyticsBucket = range.bucket;
+	const resolvedRange = resolveAnalyticsDateRange(query.range, query.from, query.to);
+	const rangeStart = resolvedRange.rangeStart;
+	const rangeEnd = resolvedRange.rangeEnd;
+	const chartBucket: AnalyticsBucket = resolvedRange.bucket;
 	const ownedRepositories = await db.select({ id: repositories.id, owner: repositories.owner, name: repositories.name })
 		.from(repositories)
 		.where(eq(repositories.ownerUserId, userId))
@@ -56,7 +52,7 @@ export default async function AnalyticsPage({
 		gte(eventAt, rangeStart),
 		lte(eventAt, rangeEnd),
 	);
-	const rangeLabel = range.label;
+	const rangeLabel = resolvedRange.label;
 
 	const runCount = count();
 	const [runTotals] = await db
@@ -204,22 +200,27 @@ export default async function AnalyticsPage({
 					<p className="text-sm text-muted-foreground">Workflow and AI activity for the selected period.</p>
 				</div>
 				<AnalyticsFilters
+					key={`${selectedRepositoryId}:${resolvedRange.value}:${resolvedRange.from}:${resolvedRange.to}`}
 					repositories={ownedRepositories}
-					ranges={rangeOptions}
+					ranges={analyticsRanges}
 					selectedRepositoryId={selectedRepositoryId}
-					selectedRange={range.value}
+					selectedRange={resolvedRange.value}
+					selectedFrom={resolvedRange.from}
+					selectedTo={resolvedRange.to}
+					maxDate={new Date().toISOString().slice(0, 10)}
 				/>
 			</header>
+			{resolvedRange.invalidCustomRange && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">Choose valid dates for a range of 10 years or less. Showing the last 90 days until then.</p>}
 
 			<section aria-label="Key metrics" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				<Metric title="AI runs" value={formatCount(number(runTotals?.runs))} detail={`${runsByAgent.length} agent types`} />
-				<Metric title="Tokens used" value={formatTokens(totalInputTokens + totalOutputTokens)} detail={`${formatTokens(totalInputTokens)} input · ${formatTokens(totalOutputTokens)} output`} />
-				<Metric title="Approval rate" value={decided ? `${Math.round((approved / decided) * 100)}%` : "—"} detail={`${approved} approved · ${rejected} rejected`} />
-				<Metric title="Workflow duration" value={averageDuration} detail={`Average for ${durations.length} decided workflows`} />
-				<Metric title="Accepted fixes" value={formatCount(repairs.accepted ?? 0)} detail={`${formatCount(repairs.rejected ?? 0)} rejected · ${formatCount(repairs.stopped ?? 0)} stopped`} />
-				<Metric title="Debug iterations" value={formatCount(totalRepairs)} detail="Recorded repair attempts" />
-				<Metric title="Test files in generated changes" value={formatCount(testFiles)} detail="Unique workflow and test-file paths touched by generated edits" />
-				<Metric title="Test executions" value={formatCount(testExecutions)} detail={`${formatCount(verificationCounts.passed ?? 0)} passed verification runs overall`} />
+				<Metric title="AI runs" value={formatCount(number(runTotals?.runs))} detail={`${runsByAgent.length} agent types`} help="Counts recorded AI attempts, including provider retries. It is not the number of workflows." />
+				<Metric title="Tokens used" value={formatTokens(totalInputTokens + totalOutputTokens)} detail={`${formatTokens(totalInputTokens)} input · ${formatTokens(totalOutputTokens)} output`} help="Input and output tokens reported by the configured providers. Provider accounting may vary." />
+				<Metric title="Approval rate" value={decided ? `${Math.round((approved / decided) * 100)}%` : "—"} detail={`${approved} approved · ${rejected} rejected`} help="Approved decisions divided by approvals plus rejections. Workflows without a decision are excluded." />
+				<Metric title="Workflow duration" value={averageDuration} detail={`Average for ${durations.length} decided workflows`} help="Average time from workflow creation to its approval or rejection. It uses decisions recorded in the selected period." />
+				<Metric title="Accepted fixes" value={formatCount(repairs.accepted ?? 0)} detail={`${formatCount(repairs.rejected ?? 0)} rejected · ${formatCount(repairs.stopped ?? 0)} stopped`} help="Repair suggestions that passed validation and were accepted into the draft. A passing check is reported separately." />
+				<Metric title="Debug iterations" value={formatCount(totalRepairs)} detail="Recorded repair attempts" help="All recorded repair attempts, including accepted, rejected, and stopped suggestions." />
+				<Metric title="Test files in generated changes" value={formatCount(testFiles)} detail="Unique workflow and test-file paths touched by generated edits" help="Unique changed file paths whose names match common test-file patterns. This does not measure test coverage or quality." />
+				<Metric title="Test executions" value={formatCount(testExecutions)} detail={`${formatCount(verificationCounts.passed ?? 0)} passed verification runs overall`} help="Counts verification steps named exactly “test”. A step count is not a count of test cases." />
 			</section>
 
 			<section aria-label="Workflow trends" className="grid min-w-0 gap-6 lg:grid-cols-2">
@@ -276,8 +277,8 @@ export default async function AnalyticsPage({
 	);
 }
 
-function Metric({ title, value, detail }: { title: string; value: string; detail: string }) {
-	return <article className="space-y-1 rounded border p-4"><h2 className="text-sm text-muted-foreground">{title}</h2><p className="text-2xl font-semibold">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></article>;
+function Metric({ title, value, detail, help }: { title: string; value: string; detail: string; help: string }) {
+	return <article className="space-y-1 rounded border p-4"><div className="flex items-center gap-1.5"><h2 className="text-sm text-muted-foreground">{title}</h2><HelpTooltip label={`About ${title}`}>{help}</HelpTooltip></div><p className="text-2xl font-semibold">{value}</p><p className="text-xs text-muted-foreground">{detail}</p></article>;
 }
 
 function Empty() {

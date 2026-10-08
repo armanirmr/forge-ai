@@ -6,7 +6,7 @@ Changeweft turns a software requirement into a repository-grounded, reviewable c
 
 The repository records Milestones 5B and 6 as complete, including an advisory AI change review and a public-repository pull request flow that was validated with a merged PR. Repository Intelligence (Phase 3) uses Gemini Embedding 2 and pgvector for hybrid semantic and keyword search. Phase 9 adds advisory security, code, and architecture review with limited indexed repository context. Phase 12 provides read-only workflow analytics.
 
-Recent product work improves the workflow and repository screens: visible workflow stage and elapsed time, pending-action feedback, a shared navigation header, a light/dark theme toggle, a persistent provider-cooldown countdown and completion sound, and repository cards with GitHub and Changeweft metrics. The working tree may contain uncommitted work; see [Project memory](docs/project-memory.md) for the full state and continuation notes.
+Recent product work improves workflow control and recovery: users can stop an active run at a safe checkpoint, retry a failed requirement analysis, and archive or restore workflows while keeping their history. Workflow and repository screens show stage and elapsed time, and analytics includes custom date ranges with calendar inputs, chart explanations, and themed data-point tooltips. A shared navigation header, light/dark theme toggle, provider-cooldown countdown and completion sound, and repository cards with GitHub and Changeweft metrics round out the workspace experience.
 
 ## Product capabilities
 
@@ -17,7 +17,11 @@ Recent product work improves the workflow and repository screens: visible workfl
 - Pull request creation only after approval and current verification. Changeweft does not merge pull requests.
 - Gemini Embedding 2 (768 dimensions), pgvector, and hybrid semantic/keyword repository search.
 - Workflow analytics for AI calls and tokens, repairs, generated test-file paths, test executions, workflow states, approval duration, and approval rate. Definitions and limitations are in [decision 0011](docs/decisions/0011-workflow-analytics.md).
+- Analytics date filters for the last 30 days, last 90 days, last 12 months, or a custom inclusive calendar range; chart points provide themed hover and keyboard-focus tooltips.
 - Workflow detail screens that make the current stage, wait duration, and next action clear while keeping detailed evidence available on demand.
+- Workflow controls to cancel active runs at a safe checkpoint and retry failed requirement analysis, with retry activity recorded in the workflow timeline.
+- Workflow archive and restore controls that preserve workflow history.
+- Branded recovery pages for unexpected errors, missing pages, repository workspaces, and workflow details, with clear retry and navigation actions.
 - First-run AI setup that guides signed-in users through chat-provider and repository-embedding credentials before repository features that depend on them.
 - Per-account AI settings for Gemini, Groq, OpenAI, and Anthropic chat adapters, with encrypted credentials and a separate Gemini Embedding 2 key when needed.
 - Per-account repository ownership: repository pages, workflows, server actions, pull requests, and analytics are scoped to the signed-in GitHub account.

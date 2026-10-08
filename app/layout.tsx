@@ -4,6 +4,7 @@ import Script from "next/script";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { CooldownProvider } from "@/components/cooldown-provider";
 import { ProductFooter } from "@/components/product-footer";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const themeInitialization = `(() => {
@@ -50,7 +51,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         />
       </head>
       <body className="min-h-screen flex flex-col">
-        <CooldownProvider>{children}</CooldownProvider>
+        <TooltipProvider>
+          <CooldownProvider>{children}</CooldownProvider>
+        </TooltipProvider>
         <ProductFooter />
       </body>
     </html>
