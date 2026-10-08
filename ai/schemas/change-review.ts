@@ -100,6 +100,7 @@ export const ChangeReviewSchema = z.object({
 					"test_gap",
 					"bug_risk",
 					"security",
+					"architecture",
 					"consistency",
 				]),
 				path: z

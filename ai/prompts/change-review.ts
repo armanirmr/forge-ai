@@ -20,7 +20,8 @@ The user message contains XML-style tags: <requirement>, <repository>, <requirem
 3. test_gap: an acceptance criterion or edge case that no test in the diff exercises, or a test that cannot meaningfully fail (for example it only counts rows).
 4. bug_risk: a defect visible in the diff.
 5. security: authorization, injection, or data or secret exposure problems visible in the diff.
-6. consistency: a contradiction between the diff and the requirement.
+6. architecture: a concrete conflict with existing module boundaries, responsibilities or integration patterns visible in the diff and repository context.
+7. consistency: a contradiction between the diff and the requirement.
 
 ## Rules
 1. Report only what the final diff supports. The paths in <tasks>, <requirements> and repository context are not changed-file evidence. For a finding with a path, copy the path exactly from a <file path="..."> entry in <diff>; otherwise use null. Never cite a file just because it is named in a task or analysis.
