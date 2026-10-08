@@ -1,7 +1,7 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { RepairSchema } from "@/ai/schemas/repair";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { AsyncSubmitButton } from "@/components/async-submit-button";
 import { db } from "@/lib/db";
 import { repairAttempts, verificationRuns } from "@/lib/db/schema";
 import { trimEditForDisplay } from "@/lib/patch/trim-edit";
@@ -46,7 +46,6 @@ export async function RepairSection({
 
   const latest = runs[0];
   const latestFailed = latest?.status === "failed";
-  if (!latestFailed && attempts.length === 0 && status !== "repairing") return null;
 
   const stale = status === "repairing" && isVerificationStale(updatedAt);
   const canRepair =
@@ -59,9 +58,17 @@ export async function RepairSection({
     <section className="space-y-4">
       <div className="flex items-center gap-3">
         <h2 className="text-lg font-medium">Repair</h2>
-        {status === "repairing" && !stale && <Badge variant="secondary">repairing</Badge>}
+        {status === "repairing" && !stale && <Badge variant="info">repairing</Badge>}
         {exhausted && <Badge variant="destructive">human intervention required</Badge>}
       </div>
+
+      {!latestFailed && attempts.length === 0 && status !== "repairing" && (
+        <p className="text-base leading-7 text-muted-foreground">
+          {latest?.status === "passed"
+            ? "No repair attempts were needed; verification passed."
+            : "Run verification to enable a repair if any checks fail."}
+        </p>
+      )}
 
       {error && status === "changes_generated" && (
         <p role="alert" className="rounded border border-red-500/50 p-3 text-sm break-words text-red-600">
@@ -72,10 +79,13 @@ export async function RepairSection({
       {canRepair && (
         <form action={repairChangesAction} className="space-y-2">
           <input type="hidden" name="workflowId" value={workflowId} />
-          <Button type="submit">
+          <AsyncSubmitButton
+            pendingLabel="Repairing…"
+            pendingMessage="The repair request is pending. It may generate and verify several attempts; the page will update when it finishes."
+          >
             Repair ({MAX_REPAIR_ATTEMPTS - attempts.length} attempt
             {MAX_REPAIR_ATTEMPTS - attempts.length === 1 ? "" : "s"} left)
-          </Button>
+          </AsyncSubmitButton>
           <p className="text-xs text-muted-foreground">
             Sends the real failure output and the plan&apos;s current files (secret-redacted) to the
             configured AI provider. Each attempt proposes edits, applies them to the sandbox copy and

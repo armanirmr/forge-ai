@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { ImplementationPlanSchema } from "@/ai/schemas/implementation-plan";
+import { AsyncSubmitButton } from "@/components/async-submit-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { db } from "@/lib/db";
@@ -49,7 +50,7 @@ export async function PlanSection({
               : "Draft, not approved"}
           </Badge>
         )}
-        {status === "planning" && <Badge variant="secondary">planning</Badge>}
+        {status === "planning" && <Badge variant="info">planning</Badge>}
       </div>
 
       {canGenerate && (
@@ -62,7 +63,12 @@ export async function PlanSection({
           )}
           <form action={generatePlanAction} className="space-y-2">
             <input type="hidden" name="workflowId" value={workflowId} />
-            <Button type="submit">Generate implementation plan</Button>
+            <AsyncSubmitButton
+              pendingLabel="Generating plan…"
+              pendingMessage="The request is pending. Provider rate limits can make this take longer; the page will update when it finishes."
+            >
+              Generate implementation plan
+            </AsyncSubmitButton>
             <p className="text-xs text-muted-foreground">
               Sends the requirement, the analysis above and selected, secret-redacted code snippets
               to the configured AI provider.
@@ -144,9 +150,13 @@ export async function PlanSection({
                 placeholder="In plain words, what is wrong or missing? For example: admins should still be filtered by region."
                 className="w-full rounded border bg-background p-2 text-sm"
               />
-              <Button type="submit" variant="outline">
+              <AsyncSubmitButton
+                variant="outline"
+                pendingLabel="Regenerating plan…"
+                pendingMessage="Your feedback was submitted. Waiting for the updated plan."
+              >
                 Request changes and regenerate
-              </Button>
+              </AsyncSubmitButton>
               <p className="text-xs text-muted-foreground">
                 Discards this draft (it stays in the timeline), withdraws any approval and generates a new
                 plan using your feedback. Not available once code has been generated.

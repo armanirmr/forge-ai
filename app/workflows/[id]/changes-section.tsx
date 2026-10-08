@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { CodeChangeSchema, type CodeChange } from "@/ai/schemas/code-generation";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { AsyncSubmitButton } from "@/components/async-submit-button";
 import { db } from "@/lib/db";
 import { codeChanges } from "@/lib/db/schema";
 import { trimEditForDisplay } from "@/lib/patch/trim-edit";
@@ -50,7 +50,7 @@ export async function ChangesSection({
       <div className="flex items-center gap-3">
         <h2 className="text-lg font-medium">Generated changes</h2>
         {change?.success && <Badge variant="outline">Not applied, not reviewed</Badge>}
-        {status === "generating" && <Badge variant="secondary">generating</Badge>}
+        {status === "generating" && <Badge variant="info">generating</Badge>}
       </div>
 
       {canGenerate && (
@@ -63,7 +63,12 @@ export async function ChangesSection({
           )}
           <form action={generateCodeAction} className="space-y-2">
             <input type="hidden" name="workflowId" value={workflowId} />
-            <Button type="submit">Generate code</Button>
+            <AsyncSubmitButton
+              pendingLabel="Generating code…"
+              pendingMessage="The request is pending. Waiting for generated changes; the page will update when it finishes."
+            >
+              Generate code
+            </AsyncSubmitButton>
             <p className="text-xs text-muted-foreground">
               Sends the approved plan, the full text of the files it modifies and the files they
               import (secret-redacted) to the configured AI provider. Nothing is written to the

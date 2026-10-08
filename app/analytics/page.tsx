@@ -1,7 +1,7 @@
 import { count, desc, eq, sql, sum } from "drizzle-orm";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
+import { ProductHeader } from "@/components/product-header";
 import { aiRuns, changeApprovals, codeChanges, repairAttempts, verificationRuns, workflows } from "@/lib/db/schema";
 import { db } from "@/lib/db";
 
@@ -112,10 +112,11 @@ export default async function AnalyticsPage() {
 			: `${(averageDurationMs / 3_600_000).toFixed(1)} hr`;
 
 	return (
-		<main className="mx-auto max-w-6xl space-y-8 p-8">
+		<>
+		<ProductHeader active="analytics" />
+		<main className="mx-auto w-full max-w-6xl space-y-8 p-6 sm:p-8">
 			<header className="flex flex-wrap items-center justify-between gap-4">
 				<div className="space-y-1">
-					<Link href="/repositories" className="text-sm underline">← Repositories</Link>
 					<h1 className="text-2xl font-semibold">Workflow analytics</h1>
 					<p className="text-sm text-muted-foreground">All recorded workflows and AI activity in this ForgeAI workspace.</p>
 				</div>
@@ -172,6 +173,7 @@ export default async function AnalyticsPage() {
 				<p className="text-xs text-muted-foreground">Test metrics count test-file paths in saved code-generation edits and verification steps named “test.” They do not count test cases. Approval rate includes decided workflows only; duration runs from workflow creation to the approval or rejection.</p>
 			</section>
 		</main>
+		</>
 	);
 }
 

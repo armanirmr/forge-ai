@@ -1,6 +1,6 @@
 import { desc, eq } from "drizzle-orm";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { AsyncSubmitButton } from "@/components/async-submit-button";
 import { db } from "@/lib/db";
 import { codeChanges, verificationRuns } from "@/lib/db/schema";
 import { isVerificationStale, VerificationResultSchema } from "@/lib/verify/types";
@@ -43,9 +43,9 @@ export async function VerificationSection({
     <section className="space-y-4">
       <div className="flex items-center gap-3">
         <h2 className="text-lg font-medium">Verification</h2>
-        {status === "verifying" && !stale && <Badge variant="secondary">running</Badge>}
+        {status === "verifying" && !stale && <Badge variant="info">running</Badge>}
         {latest?.success && (
-          <Badge variant={latest.data.status === "passed" ? "secondary" : "destructive"}>
+            <Badge variant={latest.data.status === "passed" ? "success" : "destructive"}>
             {LABEL[latest.data.status]}
           </Badge>
         )}
@@ -54,7 +54,12 @@ export async function VerificationSection({
       {canVerify && (
         <form action={verifyChangesAction} className="space-y-2">
           <input type="hidden" name="workflowId" value={workflowId} />
-          <Button type="submit">{runs.length > 0 ? "Verify again" : "Verify changes"}</Button>
+          <AsyncSubmitButton
+            pendingLabel="Verifying…"
+            pendingMessage="Docker verification is running. This can take a few minutes; the page will update when it finishes."
+          >
+            {runs.length > 0 ? "Verify again" : "Verify changes"}
+          </AsyncSubmitButton>
           <p className="text-xs text-muted-foreground">
             Rebuilds the repository from the indexed files, applies the generated edits and runs the
             repository&apos;s own scripts in an isolated Docker container (no network during checks).

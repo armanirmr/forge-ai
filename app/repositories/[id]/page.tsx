@@ -4,7 +4,9 @@ import { count, desc, eq, isNotNull, and } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { ProductHeader } from "@/components/product-header";
+import { AsyncSubmitButton } from "@/components/async-submit-button";
+import { CooldownRegistration } from "@/components/cooldown-provider";
 import { db } from "@/lib/db";
 import { codeChunks, repositories, repositoryFiles, workflows } from "@/lib/db/schema";
 import { createRequirementAction } from "./actions";
@@ -78,7 +80,11 @@ export default async function RepositoryPage({
     .limit(10);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 p-8">
+    <>
+    <CooldownRegistration error={searchError} occurredAt={null} scope={`repository-search:${id}`} />
+    <CooldownRegistration error={error ?? null} occurredAt={null} scope={`repository-action:${id}`} />
+    <ProductHeader />
+    <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-6 sm:px-6 sm:py-8">
       <div className="space-y-2">
         <Link href="/repositories" className="text-sm underline">
           ← Repositories
@@ -92,7 +98,14 @@ export default async function RepositoryPage({
         {embeddedChunks < chunks && (
           <form action={reindexRepositoryAction}>
             <input type="hidden" name="repositoryId" value={repo.id} />
-            <Button type="submit" variant="outline" size="sm">Re-index repository for semantic search</Button>
+            <AsyncSubmitButton
+              variant="outline"
+              size="sm"
+              pendingLabel="Re-indexing…"
+              pendingMessage="Re-indexing repository files for semantic search."
+            >
+              Re-index repository for semantic search
+            </AsyncSubmitButton>
           </form>
         )}
         {reindexed && <p role="status" className="text-sm text-green-700">Repository re-indexed for semantic search.</p>}
@@ -111,7 +124,12 @@ export default async function RepositoryPage({
             placeholder="Ask a code question, e.g. Where is authentication handled?"
             className="min-w-0 flex-1 rounded border bg-background px-3 py-2 text-sm"
           />
-          <Button type="submit">Search</Button>
+          <AsyncSubmitButton
+            pendingLabel="Searching…"
+            pendingMessage="Searching the indexed codebase for relevant files."
+          >
+            Search
+          </AsyncSubmitButton>
         </form>
         {searchError && <p role="alert" className="text-sm text-red-600">{searchError}</p>}
         {searchResults && (
@@ -147,7 +165,12 @@ export default async function RepositoryPage({
             placeholder="Describe what should be built, in English. Example: Add CSV export to the analytics dashboard."
             className="w-full rounded border bg-background p-3 text-sm"
           />
-          <Button type="submit">Analyze requirement</Button>
+          <AsyncSubmitButton
+            pendingLabel="Analyzing…"
+            pendingMessage="The request is pending. Waiting for analysis; the page will update when it finishes."
+          >
+            Analyze requirement
+          </AsyncSubmitButton>
           <p className="text-xs text-muted-foreground">
             Sends the requirement and selected, secret-redacted code snippets to the configured AI
             provider. This can take up to a minute.
@@ -185,5 +208,6 @@ export default async function RepositoryPage({
         </ul>
       </section>
     </main>
+    </>
   );
 }

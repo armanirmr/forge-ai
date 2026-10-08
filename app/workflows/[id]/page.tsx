@@ -1,24 +1,33 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import { asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { RequirementAnalysisSchema } from "@/ai/schemas/requirement-analysis";
 import { Badge } from "@/components/ui/badge";
+import { ProductHeader } from "@/components/product-header";
+import { CooldownRegistration } from "@/components/cooldown-provider";
 import { db } from "@/lib/db";
 import {
   aiRuns,
+  pullRequests,
   repositories,
   requirementAnalyses,
   workflowEvents,
   workflows,
 } from "@/lib/db/schema";
 import { RetrievedContextMetaSchema } from "@/lib/workflows/types";
+import { WorkflowProgress } from "./workflow-progress";
 import { PlanSection } from "./plan-section";
 import { ChangesSection } from "./changes-section";
 import { VerificationSection } from "./verification-section";
 import { RepairSection } from "./repair-section";
 import { ReviewSection } from "./review-section";
+
+function HistoryDetails({ title, children, open = false }: { title: string; children: ReactNode; open?: boolean }) {
+  return <details className="history-details" open={open}><summary>{title}</summary><div className="history-details-content">{children}</div></details>;
+}
 
 function List({ title, items }: { title: string; items: string[] }) {
   return (
@@ -48,6 +57,10 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
   if (!wf) notFound();
 
   const [repo] = await db.select().from(repositories).where(eq(repositories.id, wf.repositoryId));
+  const [pullRequest] = await db
+    .select({ status: pullRequests.status, pullNumber: pullRequests.pullNumber, updatedAt: pullRequests.updatedAt })
+    .from(pullRequests)
+    .where(eq(pullRequests.workflowId, id));
   const [analysisRow] = await db
     .select()
     .from(requirementAnalyses)
@@ -66,38 +79,86 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
     : null;
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 p-8">
-      <div className="space-y-2">
-        <Link href={`/repositories/${wf.repositoryId}`} className="text-sm underline">
-          ← {repo ? `${repo.owner}/${repo.name}` : "Repository"}
+    <div className="relative isolate min-h-screen">
+    <div className="workflow-atmosphere" aria-hidden="true" />
+    <CooldownRegistration error={wf.error} occurredAt={wf.updatedAt} scope={`workflow:${wf.id}`} />
+    <div className="relative z-10">
+    <ProductHeader />
+    <main className="mx-auto w-full max-w-5xl space-y-8 px-5 py-8 sm:px-8 sm:py-10">
+      <header className="space-y-6">
+        <Link
+          href={`/repositories/${wf.repositoryId}`}
+          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+        >
+          Repositories / {repo ? `${repo.owner}/${repo.name}` : "Repository"}
         </Link>
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold">Requirement analysis</h1>
-          <Badge variant={wf.status === "failed" ? "destructive" : "secondary"}>{wf.status}</Badge>
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Change request</h1>
+          <Badge variant={
+            wf.status === "failed" || wf.status === "changes_rejected" || pullRequest?.status === "failed"
+              ? "destructive"
+              : pullRequest?.status === "created" || wf.status === "changes_approved"
+                ? "success"
+                : pullRequest?.status === "creating" || ["analyzing", "analysis_completed", "planning", "plan_completed", "plan_approved", "generating", "changes_generated", "verifying", "repairing"].includes(wf.status)
+                  ? "info"
+                  : "secondary"
+          }>
+            {pullRequest?.status === "created" ? "Pull request created" :
+              pullRequest?.status === "creating" ? "Creating pull request" :
+              pullRequest?.status === "failed" ? "Pull request failed" :
+              wf.status === "analysis_completed" ? "Analysis ready" :
+              wf.status === "plan_completed" ? "Plan ready for review" :
+              wf.status === "plan_approved" ? "Plan approved" :
+              wf.status === "changes_generated" ? "Changes ready" :
+              wf.status === "changes_approved" ? "Changes approved" :
+              wf.status === "changes_rejected" ? "Changes rejected" :
+              wf.status === "failed" ? "Failed" :
+              wf.status === "analyzing" ? "Analyzing" :
+              wf.status === "planning" ? "Planning" :
+              wf.status === "generating" ? "Generating changes" :
+              wf.status === "verifying" ? "Verifying" :
+              wf.status === "repairing" ? "Repairing" : "In progress"}
+          </Badge>
         </div>
-        <blockquote className="border-l-2 pl-3 text-sm">{wf.requirement}</blockquote>
-      </div>
+        <div className="space-y-2 rounded-md border border-border bg-card px-5 py-4 sm:px-6">
+          <h2 className="text-sm font-semibold text-primary">Requirement</h2>
+          <p className="max-w-4xl text-base leading-7 text-foreground">{wf.requirement}</p>
+        </div>
+      </header>
+
+      <WorkflowProgress
+        status={wf.status}
+        pullRequestStatus={pullRequest?.status}
+        pullRequestNumber={pullRequest?.pullNumber}
+        startedAt={(pullRequest?.status === "creating"
+          ? pullRequest.updatedAt
+          : wf.status === "analyzing"
+            ? wf.createdAt
+            : wf.updatedAt).toISOString()}
+      />
 
       {wf.status === "failed" && (
-        <div role="alert" className="rounded border border-red-500/50 p-4 text-sm text-red-600">
+        <div role="alert" className="rounded border border-destructive/50 p-4 text-sm text-destructive">
           <p className="font-medium">Analysis failed. Nothing was saved as a result.</p>
           <p className="mt-1 break-words">{wf.error}</p>
         </div>
       )}
 
       {analysis && !analysis.success && (
-        <p role="alert" className="rounded border border-red-500/50 p-4 text-sm text-red-600">
+        <p role="alert" className="rounded border border-destructive/50 p-4 text-sm text-destructive">
           Stored analysis no longer matches the current schema and was not rendered.
         </p>
       )}
 
       {analysis?.success && (
+        <section className="space-y-2 border-b border-border pb-6">
+          <h2 className="text-xl font-semibold tracking-tight">Analysis summary</h2>
+          <p className="text-base leading-7">{analysis.data.summary}</p>
+        </section>
+      )}
+      {analysis?.success && (
+        <HistoryDetails title="Full requirement analysis">
         <div className="space-y-6">
-          <section className="space-y-1">
-            <h2 className="text-lg font-medium">Summary</h2>
-            <p className="text-sm">{analysis.data.summary}</p>
-          </section>
-
           <section className="space-y-2">
             <h2 className="text-lg font-medium">Functional requirements</h2>
             <ul className="divide-y rounded border text-sm">
@@ -135,15 +196,37 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
             )}
           </section>
         </div>
+        </HistoryDetails>
       )}
 
-      <PlanSection workflowId={wf.id} status={wf.status} error={wf.error} />
-      <ChangesSection workflowId={wf.id} status={wf.status} error={wf.error} />
-      <VerificationSection workflowId={wf.id} status={wf.status} updatedAt={wf.updatedAt} />
-      <RepairSection workflowId={wf.id} status={wf.status} updatedAt={wf.updatedAt} error={wf.error} />
-      <ReviewSection workflowId={wf.id} repositoryId={wf.repositoryId} status={wf.status} />
+      {wf.status === "analysis_completed" || wf.status === "planning" || wf.status === "plan_completed" ? (
+        <PlanSection workflowId={wf.id} status={wf.status} error={wf.error} />
+      ) : ["plan_approved", "generating", "changes_generated", "verifying", "repairing", "changes_approved", "changes_rejected"].includes(wf.status) ? (
+        <HistoryDetails title="Implementation plan"><PlanSection workflowId={wf.id} status={wf.status} error={wf.error} /></HistoryDetails>
+      ) : null}
+      {wf.status === "plan_approved" || wf.status === "generating" ? (
+        <ChangesSection workflowId={wf.id} status={wf.status} error={wf.error} />
+      ) : ["changes_generated", "verifying", "repairing", "changes_approved", "changes_rejected"].includes(wf.status) ? (
+        <HistoryDetails title="Generated changes"><ChangesSection workflowId={wf.id} status={wf.status} error={wf.error} /></HistoryDetails>
+      ) : null}
+      {wf.status === "changes_generated" || wf.status === "verifying" ? (
+        <VerificationSection workflowId={wf.id} status={wf.status} updatedAt={wf.updatedAt} />
+      ) : ["repairing", "changes_approved", "changes_rejected"].includes(wf.status) ? (
+        <HistoryDetails title="Verification results"><VerificationSection workflowId={wf.id} status={wf.status} updatedAt={wf.updatedAt} /></HistoryDetails>
+      ) : null}
+      {wf.status === "repairing" ? (
+        <RepairSection workflowId={wf.id} status={wf.status} updatedAt={wf.updatedAt} error={wf.error} />
+      ) : ["changes_generated", "changes_approved", "changes_rejected"].includes(wf.status) ? (
+        <HistoryDetails title="Repair attempts"><RepairSection workflowId={wf.id} status={wf.status} updatedAt={wf.updatedAt} error={wf.error} /></HistoryDetails>
+      ) : null}
+      {wf.status === "changes_generated" ? (
+        <ReviewSection workflowId={wf.id} repositoryId={wf.repositoryId} status={wf.status} />
+      ) : ["changes_approved", "changes_rejected"].includes(wf.status) ? (
+        <HistoryDetails title="Change review and decision"><ReviewSection workflowId={wf.id} repositoryId={wf.repositoryId} status={wf.status} /></HistoryDetails>
+      ) : null}
 
       {context?.success && (
+        <HistoryDetails title="Repository context used">
         <section className="space-y-2">
           <h2 className="text-lg font-medium">Repository context used</h2>
           <p className="text-sm text-muted-foreground">
@@ -165,11 +248,13 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
             )}
           </ul>
         </section>
+        </HistoryDetails>
       )}
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-medium">AI runs</h2>
-        <ul className="divide-y rounded border text-xs">
+      <HistoryDetails title={`AI activity (${runs.length} runs)`}>
+      <section className="space-y-3">
+        <h2 className="text-lg font-medium">AI activity</h2>
+        <ul className="divide-y rounded border text-sm">
           {runs.map((r) => (
             <li key={r.id} className="grid grid-cols-2 gap-1 p-3 sm:grid-cols-4">
               <span>{r.agent}</span>
@@ -185,10 +270,12 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
           {runs.length === 0 && <li className="p-3 text-muted-foreground">No AI runs recorded.</li>}
         </ul>
       </section>
+      </HistoryDetails>
 
-      <section className="space-y-2">
+      <HistoryDetails title={`Timeline (${events.length} events)`}>
+      <section className="space-y-3">
         <h2 className="text-lg font-medium">Timeline</h2>
-        <ol className="space-y-1 text-xs">
+        <ol className="space-y-2 text-sm">
           {events.map((e) => (
             <li key={e.id} className="flex gap-3">
               <time className="text-muted-foreground">{e.createdAt.toLocaleTimeString()}</time>
@@ -198,6 +285,9 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
           ))}
         </ol>
       </section>
+      </HistoryDetails>
     </main>
+    </div>
+    </div>
   );
 }

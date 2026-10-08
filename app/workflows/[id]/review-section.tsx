@@ -65,7 +65,7 @@ export async function ReviewSection({
     <section className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-medium">Review</h2>
-        {decision?.decision === "approved" && <Badge variant="secondary">approved</Badge>}
+        {decision?.decision === "approved" && <Badge variant="success">approved</Badge>}
         {decision?.decision === "rejected" && <Badge variant="destructive">rejected</Badge>}
         {!decision && <Badge variant="outline">awaiting decision</Badge>}
       </div>
@@ -91,22 +91,22 @@ export async function ReviewSection({
       <AiReviewBlock workflowId={workflowId} editsHash={review.editsHash} />
 
       {review.files.map((file) => (
-        <details key={file.path} open className="overflow-hidden rounded border">
-          <summary className="cursor-pointer bg-muted px-3 py-1 font-mono text-xs">
+        <details key={file.path} className="overflow-hidden rounded border">
+          <summary className="cursor-pointer bg-muted px-4 py-3 font-mono text-sm">
             {file.path}{" "}
             {file.isNew && <span className="text-muted-foreground">(new file) </span>}
             <span className="text-green-700 dark:text-green-400">+{file.added}</span>{" "}
             <span className="text-red-700 dark:text-red-400">-{file.removed}</span>
           </summary>
           {file.hunks.length === 0 && (
-            <p className="px-3 py-2 text-xs text-muted-foreground">No net change in this file.</p>
+            <p className="px-3 py-2 text-sm text-muted-foreground">No net change in this file.</p>
           )}
           {file.hunks.map((h, hi) => (
             <div key={hi} className="border-t">
-              <p className="bg-muted/50 px-3 py-0.5 font-mono text-xs text-muted-foreground">
+              <p className="bg-muted/50 px-3 py-1 font-mono text-sm text-muted-foreground">
                 @@ -{h.oldStart} +{h.newStart} @@
               </p>
-              <pre className="overflow-x-auto font-mono text-xs">
+              <pre className="overflow-x-auto font-mono text-sm leading-6">
                 {h.lines.map((l, li) => (
                   <span key={li} className={`block whitespace-pre px-3 ${LINE_TONE[l.type]}`}>
                     {`${l.type} ${l.text}`}

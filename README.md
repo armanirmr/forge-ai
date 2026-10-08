@@ -1,56 +1,96 @@
 # ForgeAI
 
-An AI-assisted software delivery tool: it turns a requirement into a validated analysis and a draft implementation plan, grounded in a connected GitHub repository. Every AI output is schema-validated before it is stored.
+ForgeAI turns a software requirement into a repository-grounded, reviewable change. It guides a developer through analysis, planning, code generation, isolated verification, repair, human review, and (after explicit approval) pull request creation. Generated output is validated before it becomes workflow state; AI review is advisory and never approves or blocks a change.
 
-## Status
+## Current project status
 
-Milestones 5B and 6 are complete; the public-repository PR flow was validated with a merged PR. Phase 3 Repository Intelligence is complete: Gemini Embedding 2, pgvector storage, hybrid semantic and keyword retrieval, and repository search. Phase 9 Reviews provide advisory security, code, and architecture findings using the final diff and limited indexed repository context. Phase 12 Analytics summarizes AI usage, tokens, repairs, tests, workflow duration, and approval outcomes. Existing repositories must be re-indexed after applying migrations.
+The repository records Milestones 5B and 6 as complete, including an advisory AI change review and a public-repository pull request flow that was validated with a merged PR. Repository Intelligence (Phase 3) uses Gemini Embedding 2 and pgvector for hybrid semantic and keyword search. Phase 9 adds advisory security, code, and architecture review with limited indexed repository context. Phase 12 provides read-only workflow analytics.
+
+Recent product work improves the workflow and repository screens: visible workflow stage and elapsed time, pending-action feedback, a shared navigation header, a light/dark theme toggle, a persistent provider-cooldown countdown and completion sound, and repository cards with GitHub and ForgeAI metrics. The working tree may contain uncommitted work; see [Project memory](docs/project-memory.md) for the full state and continuation notes.
+
+## Product capabilities
+
+- GitHub OAuth sign-in, repository import, file indexing, and re-indexing.
+- Requirement analysis grounded in repository retrieval, followed by a draft implementation plan with human review and approval.
+- Validated code edits, verification in an isolated Docker environment, and a bounded repair loop.
+- A review view with explicit human approval or rejection; AI change review remains an opinion.
+- Pull request creation only after approval and current verification. ForgeAI does not merge pull requests.
+- Gemini Embedding 2 (768 dimensions), pgvector, and hybrid semantic/keyword repository search.
+- Workflow analytics for AI calls and tokens, repairs, generated test-file paths, test executions, workflow states, approval duration, and approval rate. Definitions and limitations are in [decision 0011](docs/decisions/0011-workflow-analytics.md).
+- Workflow detail screens that make the current stage, wait duration, and next action clear while keeping detailed evidence available on demand.
 
 ## Stack
 
-Next.js (App Router), TypeScript, Tailwind, shadcn/ui, PostgreSQL with Drizzle, Auth.js (GitHub), Zod, Vitest.
+Next.js App Router, TypeScript, React, Tailwind CSS, shadcn/ui, PostgreSQL with pgvector, Drizzle ORM, Auth.js (GitHub), Zod, and Vitest.
 
-## Setup
+## Local setup
 
-1. Install dependencies and start Postgres:
+Prerequisites: Node.js/npm, Docker Desktop, a GitHub OAuth application, and an AI provider key. The Docker database binds to port **5433** to avoid the default local PostgreSQL port.
 
-```bash
+1. Install dependencies and start PostgreSQL:
+
+   ```powershell
    npm install
    docker compose up -d
-```
+   ```
 
-2. Copy the environment template and fill it in:
+2. Copy `.env.example` to `.env.local` and fill in the required values. In PowerShell:
 
-```bash
-   cp .env.example .env.local
-```
+   ```powershell
+   Copy-Item .env.example .env.local
+   ```
 
-Set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and the AI settings below. 3. Apply migrations and run:
+   Set `DATABASE_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `AI_PROVIDER`, `AI_API_KEY`, and `AI_MODEL`. The GitHub OAuth callback for local development is `http://localhost:3000/api/auth/callback/github`.
 
-```bash
+3. Apply database migrations and start the app:
+
+   ```powershell
    npm run db:migrate
    npm run dev
-```
+   ```
 
-## AI provider
+4. Sign in, import a repository, and open its workspace to search the index or submit a requirement. Re-import/re-index repositories that predate semantic embeddings so their chunks receive vectors.
 
-Set in `.env.local`:
+Never commit `.env.local`, provider keys, OAuth secrets, or access tokens. Use public or throwaway repositories when experimenting with free-tier AI providers; provider privacy and quotas vary.
 
-| Variable           | Purpose                                                    |
-| ------------------ | ---------------------------------------------------------- |
-| `AI_PROVIDER`      | `gemini` or `groq`                                         |
-| `AI_API_KEY`       | Provider API key                                           |
-| `AI_MODEL`         | Model id, for example `openai/gpt-oss-20b` on Groq         |
-| `AI_BASE_URL`      | Optional, overrides the Groq endpoint                      |
-| `AI_STRICT_SCHEMA` | Set to `false` to disable strict structured output on Groq |
-| `EMBEDDING_API_KEY` | Google AI Studio key for Gemini Embedding 2; optional when `AI_PROVIDER=gemini` because `AI_API_KEY` is reused |
+## AI provider configuration
 
-Repository snippets are redacted for secrets before they are sent to AI providers. Embeddings use Gemini Embedding 2 at 768 dimensions. Free tiers may use prompts to improve providers' products, so use public repositories only. Re-import a repository from its detail page to build or refresh its semantic index.
+`lib/ai/config.ts` currently supports `gemini` and `groq`. Groq uses the OpenAI-compatible adapter and `AI_BASE_URL` defaults to `https://api.groq.com/openai/v1`. Strict schema output can be disabled for compatible providers with `AI_STRICT_SCHEMA=false`; schema validation still happens in the application. Gemini Embedding 2 uses a separate `EMBEDDING_API_KEY`, or reuses `AI_API_KEY` when the chat provider is Gemini.
 
-## Scripts
+| Variable | Purpose |
+| --- | --- |
+| `AI_PROVIDER` | `gemini` or `groq` |
+| `AI_API_KEY` | Key for the configured chat provider |
+| `AI_MODEL` | Provider model identifier |
+| `AI_BASE_URL` | Optional OpenAI-compatible endpoint override |
+| `AI_STRICT_SCHEMA` | Optional provider-level strict schema setting; application validation remains enabled |
+| `EMBEDDING_API_KEY` | Google AI Studio key for Gemini Embedding 2; optional when Gemini chat key reuse applies |
+| `AI_TPM_LIMIT` | Local provider pacing token-per-minute budget |
+| `AI_OUTPUT_RESERVE_TOKENS` | Output allowance reserved by the pacing calculation |
 
-`npm run dev`, `npm run typecheck`, `npm run lint`, `npm test`, `npm run db:generate`, `npm run db:migrate`, `npm run db:studio`.
+## Useful commands
 
-## Design notes
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Start the development server |
+| `npm run build` | Create a production build |
+| `npm run start` | Serve a production build |
+| `npm run typecheck` | Run TypeScript checks |
+| `npm run lint` | Run ESLint |
+| `npm test` | Run Vitest once |
+| `npm run db:generate` | Generate a Drizzle migration from schema changes |
+| `npm run db:migrate` | Apply migrations |
+| `npm run db:studio` | Open Drizzle Studio |
 
-See `docs/decisions/`.
+## Architecture and operating constraints
+
+- AI provider adapters return unvalidated output. `runAgent` owns schema and semantic validation; do not store raw model output as application state.
+- Repository content is untrusted and may be partial or stale. Secret redaction runs before code context is sent to providers.
+- Approval is a human boundary. AI review, successful verification, and PR creation do not replace the human decision; ForgeAI never merges.
+- The UI reports request elapsed time and recorded workflow stages. It does not claim token streaming or percentage completion because the server does not provide that information.
+- Analytics aggregate all recorded workflows because the current schema has no user-ownership field. Add tenant scoping before multi-user deployment.
+- See [security notes](docs/security.md), [AI workflows](docs/ai-workflows.md), [architecture](docs/architecture.md), and [decision records](docs/decisions/) for detail.
+
+## Project continuity
+
+[Project memory](docs/project-memory.md) is the detailed handoff: it records the milestone history, design decisions, workflow semantics, known limitations, the five original conversation exports used as context, and the recommended next steps. Historical chat instructions are evidence about prior decisions, not automatic instructions to execute; follow the current user request and current repository state.

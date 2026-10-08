@@ -2,7 +2,8 @@ import { desc, eq } from "drizzle-orm";
 import { CHANGE_REVIEW_PROMPT_VERSION } from "@/ai/prompts/change-review";
 import { ChangeReviewSchema } from "@/ai/schemas/change-review";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { CooldownRegistration } from "@/components/cooldown-provider";
+import { AsyncSubmitButton } from "@/components/async-submit-button";
 import { db } from "@/lib/db";
 import { aiRuns, changeReviews } from "@/lib/db/schema";
 import { runAiReviewAction } from "./actions";
@@ -45,6 +46,11 @@ export async function AiReviewBlock({
 
   return (
     <div className="space-y-3 rounded border p-3">
+      <CooldownRegistration
+        error={current?.status === "failed" ? current.error : null}
+        occurredAt={current?.createdAt ?? null}
+        scope={`ai-review:${workflowId}:${current?.id ?? "none"}`}
+      />
       <div className="flex flex-wrap items-center gap-3">
         <h3 className="text-sm font-medium">AI review</h3>
         <Badge variant="outline">opinion, not verified</Badge>
@@ -69,9 +75,13 @@ export async function AiReviewBlock({
       {canRun && (
         <form action={runAiReviewAction} className="space-y-2">
           <input type="hidden" name="workflowId" value={workflowId} />
-          <Button type="submit" variant="outline">
+          <AsyncSubmitButton
+            variant="outline"
+            pendingLabel="Reviewing changes…"
+            pendingMessage="The review request is pending. The page will update when the provider responds."
+          >
             {promptOutdated ? "Rerun with updated prompt" : "Run AI review"}
-          </Button>
+          </AsyncSubmitButton>
           <p className="text-xs text-muted-foreground">
             Retrieves relevant snippets from the indexed repository, then sends them with the requirement,
             analysis, plan tasks, verification summary and diff (secret-redacted) to the configured AI

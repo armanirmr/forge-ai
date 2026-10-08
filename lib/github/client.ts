@@ -12,6 +12,9 @@ export type RepoSummary = {
 	language: string | null;
 	isPrivate: boolean;
 	updatedAt: string | null;
+	defaultBranch: string;
+	stars: number;
+	forks: number;
 };
 
 export async function listOwnedRepos(token: string): Promise<RepoSummary[]> {
@@ -30,5 +33,8 @@ export async function listOwnedRepos(token: string): Promise<RepoSummary[]> {
 		language: r.language,
 		isPrivate: r.private,
 		updatedAt: r.updated_at,
+		defaultBranch: r.default_branch,
+		stars: r.stargazers_count,
+		forks: r.forks_count,
 	}));
 }

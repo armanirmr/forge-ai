@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local agent skill bundles can include large third-party scripts.
+    ".agents/**",
   ]),
 ]);
 
