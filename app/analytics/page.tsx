@@ -1,24 +1,56 @@
-import { count, desc, eq, sql, sum } from "drizzle-orm";
+import { and, count, desc, eq, gte, lte, sql, sum } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { ProductHeader } from "@/components/product-header";
+import { AnalyticsFilters } from "@/components/analytics-filters";
 import { aiRuns, changeApprovals, codeChanges, repairAttempts, repositories, verificationRuns, workflows } from "@/lib/db/schema";
 import { db } from "@/lib/db";
 import { getOwnedWorkflowScope } from "@/lib/security/tenant-access";
+import { buildDecisionDurationSeries, buildWorkflowActivitySeries, type AnalyticsBucket } from "@/lib/analytics/series";
+import { DecisionDurationChart, WorkflowActivityChart } from "./charts";
 
 const number = (value: number | string | null | undefined) => Number(value ?? 0);
 const formatCount = (value: number) => value.toLocaleString();
 const formatTokens = (value: number) => value.toLocaleString();
+const rangeOptions = [
+	{ value: "30d", label: "Last 30 days", days: 30, bucket: "day" },
+	{ value: "90d", label: "Last 90 days", days: 90, bucket: "week" },
+	{ value: "365d", label: "Last 12 months", days: 365, bucket: "month" },
+] as const;
 
 function isTestPath(path: string): boolean {
 	return /(?:^|[\\/])(?:tests?|__tests__)(?:[\\/]|$)|\.(?:test|spec)\.[^\\/]+$/i.test(path);
 }
 
-export default async function AnalyticsPage() {
+export default async function AnalyticsPage({
+	searchParams,
+}: {
+	searchParams: Promise<{ range?: string; repository?: string }>;
+}) {
 	const session = await auth();
 	if (!session) redirect("/");
 	const userId = session.user.id;
 	const ownerScope = getOwnedWorkflowScope(userId);
+	const query = await searchParams;
+	const range = rangeOptions.find((option) => option.value === query.range) ?? rangeOptions[1];
+	const rangeEnd = new Date();
+	const rangeStart = new Date(rangeEnd.getTime() - range.days * 24 * 60 * 60 * 1000);
+	const chartBucket: AnalyticsBucket = range.bucket;
+	const ownedRepositories = await db.select({ id: repositories.id, owner: repositories.owner, name: repositories.name })
+		.from(repositories)
+		.where(eq(repositories.ownerUserId, userId))
+		.orderBy(repositories.owner, repositories.name);
+	const selectedRepositoryId = ownedRepositories.some((repository) => repository.id === query.repository)
+		? query.repository!
+		: "all";
+	const eventScope = <TColumn extends AnyPgColumn>(eventAt: TColumn) => and(
+		ownerScope,
+		selectedRepositoryId === "all" ? undefined : eq(repositories.id, selectedRepositoryId),
+		gte(eventAt, rangeStart),
+		lte(eventAt, rangeEnd),
+	);
+	const rangeLabel = range.label;
 
 	const runCount = count();
 	const [runTotals] = await db
@@ -30,7 +62,7 @@ export default async function AnalyticsPage() {
 		.from(aiRuns)
 		.innerJoin(workflows, eq(aiRuns.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope);
+		.where(eventScope(aiRuns.createdAt));
 	const runsByAgent = await db
 		.select({
 			agent: aiRuns.agent,
@@ -41,7 +73,7 @@ export default async function AnalyticsPage() {
 		.from(aiRuns)
 		.innerJoin(workflows, eq(aiRuns.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope)
+		.where(eventScope(aiRuns.createdAt))
 		.groupBy(aiRuns.agent)
 		.orderBy(desc(count()));
 	const repairsByStatus = await db
@@ -49,14 +81,14 @@ export default async function AnalyticsPage() {
 		.from(repairAttempts)
 		.innerJoin(workflows, eq(repairAttempts.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope)
+		.where(eventScope(repairAttempts.createdAt))
 		.groupBy(repairAttempts.status);
 	const verificationsByStatus = await db
 		.select({ status: verificationRuns.status, total: count() })
 		.from(verificationRuns)
 		.innerJoin(workflows, eq(verificationRuns.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope)
+		.where(eventScope(verificationRuns.createdAt))
 		.groupBy(verificationRuns.status);
 	const verificationSteps = await db
 		.select({
@@ -65,7 +97,7 @@ export default async function AnalyticsPage() {
 		.from(verificationRuns)
 		.innerJoin(workflows, eq(verificationRuns.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope);
+		.where(eventScope(verificationRuns.createdAt));
 	const generatedPaths = await db
 		.select({
 			workflowId: codeChanges.workflowId,
@@ -74,7 +106,7 @@ export default async function AnalyticsPage() {
 		.from(codeChanges)
 		.innerJoin(workflows, eq(codeChanges.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope);
+		.where(eventScope(codeChanges.createdAt));
 	const decisions = await db
 		.select({
 			decision: changeApprovals.decision,
@@ -84,16 +116,21 @@ export default async function AnalyticsPage() {
 		.from(changeApprovals)
 		.innerJoin(workflows, eq(changeApprovals.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope);
+		.where(eventScope(changeApprovals.createdAt));
 	const workflowStatuses = await db
 		.select({ status: workflows.status, total: count() })
 		.from(workflows)
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope)
+		.where(eventScope(workflows.createdAt))
 		.groupBy(workflows.status);
+	const filteredWorkflows = await db
+		.select({ status: workflows.status, createdAt: workflows.createdAt })
+		.from(workflows)
+		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
+		.where(eventScope(workflows.createdAt));
 	const [workflowTotal] = await db.select({ total: count() }).from(workflows)
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope);
+		.where(eventScope(workflows.createdAt));
 	const latestRuns = await db
 		.select({
 			agent: aiRuns.agent,
@@ -106,7 +143,7 @@ export default async function AnalyticsPage() {
 		.from(aiRuns)
 		.innerJoin(workflows, eq(aiRuns.workflowId, workflows.id))
 		.innerJoin(repositories, eq(workflows.repositoryId, repositories.id))
-		.where(ownerScope)
+		.where(eventScope(aiRuns.createdAt))
 		.orderBy(desc(aiRuns.createdAt))
 		.limit(10);
 
@@ -120,6 +157,11 @@ export default async function AnalyticsPage() {
 	const durations = decisions.map(
 		(row) => row.decidedAt.getTime() - row.workflowCreatedAt.getTime(),
 	);
+	const workflowActivity = buildWorkflowActivitySeries(filteredWorkflows, rangeStart, rangeEnd, chartBucket);
+	const decisionDurations = buildDecisionDurationSeries(decisions.map((row) => ({
+		decidedAt: row.decidedAt,
+		workflowCreatedAt: row.workflowCreatedAt,
+	})), rangeStart, rangeEnd, chartBucket);
 	const averageDurationMs = durations.length
 		? durations.reduce((total, value) => total + value, 0) / durations.length
 		: null;
@@ -145,11 +187,17 @@ export default async function AnalyticsPage() {
 		<>
 		<ProductHeader active="analytics" />
 		<main className="mx-auto w-full max-w-6xl space-y-8 p-6 sm:p-8">
-			<header className="flex flex-wrap items-center justify-between gap-4">
+			<header className="flex flex-wrap items-end justify-between gap-4">
 				<div className="space-y-1">
 					<h1 className="text-2xl font-semibold">Workflow analytics</h1>
-					<p className="text-sm text-muted-foreground">All recorded workflows and AI activity in this ForgeAI workspace.</p>
+					<p className="text-sm text-muted-foreground">Workflow and AI activity for the selected period.</p>
 				</div>
+				<AnalyticsFilters
+					repositories={ownedRepositories}
+					ranges={rangeOptions}
+					selectedRepositoryId={selectedRepositoryId}
+					selectedRange={range.value}
+				/>
 			</header>
 
 			<section aria-label="Key metrics" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -161,6 +209,11 @@ export default async function AnalyticsPage() {
 				<Metric title="Debug iterations" value={formatCount(totalRepairs)} detail="Recorded repair attempts" />
 				<Metric title="Test files in generated changes" value={formatCount(testFiles)} detail="Unique workflow and test-file paths touched by generated edits" />
 				<Metric title="Test executions" value={formatCount(testExecutions)} detail={`${formatCount(verificationCounts.passed ?? 0)} passed verification runs overall`} />
+			</section>
+
+			<section aria-label="Workflow trends" className="grid min-w-0 gap-6 lg:grid-cols-2">
+				<WorkflowActivityChart data={workflowActivity} bucket={chartBucket} rangeLabel={rangeLabel} />
+				<DecisionDurationChart data={decisionDurations} bucket={chartBucket} rangeLabel={rangeLabel} />
 			</section>
 
 			<section className="grid gap-6 lg:grid-cols-2">
@@ -200,7 +253,7 @@ export default async function AnalyticsPage() {
 						</table>
 					</div>
 				)}
-				<p className="text-xs text-muted-foreground">Test metrics count test-file paths in saved code-generation edits and verification steps named “test.” They do not count test cases. Approval rate includes decided workflows only; duration runs from workflow creation to the approval or rejection.</p>
+				<p className="text-xs text-muted-foreground">Filters apply to the recorded date for each event type. Time to decision includes the full time since workflow creation, even when that started before the selected period. Test metrics count test-file paths in saved code-generation edits and verification steps named “test”; they do not count test cases. Approval rate includes decided workflows only.</p>
 			</section>
 		</main>
 		</>

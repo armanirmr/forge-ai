@@ -1,0 +1,41 @@
+import { describe, expect, it } from "vitest";
+import { buildDecisionDurationSeries, buildWorkflowActivitySeries } from "./series";
+
+const now = new Date("2026-10-08T12:00:00.000Z");
+const start = new Date("2026-08-17T00:00:00.000Z");
+
+describe("analytics time series", () => {
+	it("groups workflows by selected period and current state, including empty weeks", () => {
+		const series = buildWorkflowActivitySeries([
+			{ status: "changes_approved", createdAt: new Date("2026-10-05T10:00:00.000Z") },
+			{ status: "failed", createdAt: new Date("2026-10-06T10:00:00.000Z") },
+			{ status: "planning", createdAt: new Date("2026-09-28T10:00:00.000Z") },
+			{ status: "changes_rejected", createdAt: new Date("2026-08-01T10:00:00.000Z") },
+		], start, now, "week");
+
+		expect(series).toHaveLength(8);
+		expect(series.at(-1)).toMatchObject({ active: 0, review: 0, approved: 1, closed: 1 });
+		expect(series.at(-2)).toMatchObject({ active: 1, review: 0, approved: 0, closed: 0 });
+		expect(series[0]).toMatchObject({ active: 0, review: 0, approved: 0, closed: 0 });
+	});
+
+	it("averages decision duration by selected period and ignores incomplete weeks", () => {
+		const series = buildDecisionDurationSeries([
+			{ decidedAt: new Date("2026-10-05T12:00:00.000Z"), workflowCreatedAt: new Date("2026-10-05T10:00:00.000Z") },
+			{ decidedAt: new Date("2026-10-06T12:00:00.000Z"), workflowCreatedAt: new Date("2026-10-05T12:00:00.000Z") },
+			{ decidedAt: new Date("2026-10-07T12:00:00.000Z"), workflowCreatedAt: new Date("2026-10-08T12:00:00.000Z") },
+		], start, now, "week");
+
+		expect(series.at(-1)).toMatchObject({ averageMs: 13 * 60 * 60 * 1000, sampleCount: 2 });
+		expect(series.at(-2)).toMatchObject({ averageMs: null, sampleCount: 0 });
+	});
+
+	it("returns daily and monthly buckets for the requested range", () => {
+		const daily = buildWorkflowActivitySeries([], new Date("2026-10-01T12:00:00.000Z"), now, "day");
+		const monthly = buildWorkflowActivitySeries([], new Date("2026-01-15T12:00:00.000Z"), now, "month");
+
+		expect(daily).toHaveLength(8);
+		expect(monthly).toHaveLength(10);
+		expect(monthly[0].periodStart.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+	});
+});
