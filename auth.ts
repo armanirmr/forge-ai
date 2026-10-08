@@ -17,11 +17,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 			if (account?.access_token) token.accessToken = account.access_token;
 			return token;
 		},
-		session({ session, token }) {
-			// Known limitation: this makes the token readable via /api/auth/session
-			// by the signed-in user's own browser. Never pass `session` to client
-			// components. Revisit with database sessions before any deployment.
-			session.accessToken = token.accessToken as string | undefined;
+		session({ session }) {
+			// Keep provider credentials in the encrypted JWT cookie, never in the
+			// session response returned by /api/auth/session.
 			return session;
 		},
 	},

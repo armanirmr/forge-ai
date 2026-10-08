@@ -231,3 +231,49 @@ export const changeApprovals = pgTable("change_approvals", {
 	),
 	createdAt: createdAt(),
 });
+
+export const changeReviews = pgTable(
+	"change_reviews",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workflowId: uuid("workflow_id")
+			.notNull()
+			.references(() => workflows.id, { onDelete: "cascade" }),
+		aiRunId: uuid("ai_run_id").references(() => aiRuns.id),
+		/** The effective edits this review looked at. A review for other edits is not shown. */
+		editsHash: text("edits_hash").notNull(),
+		status: text("status", { enum: ["completed", "failed"] }).notNull(),
+		/** Validated ChangeReviewSchema output; null when the review failed. */
+		result: jsonb("result").$type<Record<string, unknown>>(),
+		error: text("error"),
+		createdAt: createdAt(),
+	},
+	(t) => [index("change_reviews_workflow_idx").on(t.workflowId)],
+);
+
+export const pullRequests = pgTable(
+	"pull_requests",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workflowId: uuid("workflow_id")
+			.notNull()
+			.unique()
+			.references(() => workflows.id, { onDelete: "cascade" }),
+			approvalId: uuid("approval_id")
+				.notNull()
+				.references(() => changeApprovals.id),
+		editsHash: text("edits_hash").notNull(),
+		branchName: text("branch_name").notNull(),
+		baseBranch: text("base_branch").notNull(),
+		status: text("status", { enum: ["creating", "created", "failed"] }).notNull(),
+		commitSha: text("commit_sha"),
+		pullNumber: integer("pull_number"),
+		pullUrl: text("pull_url"),
+		error: text("error"),
+		createdAt: createdAt(),
+		updatedAt: timestamp("updated_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+	},
+	(t) => [index("pull_requests_workflow_idx").on(t.workflowId)],
+);

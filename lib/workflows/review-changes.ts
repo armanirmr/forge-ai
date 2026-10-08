@@ -42,6 +42,7 @@ export type Review = {
 	editCount: number;
 	repairCount: number;
 	latestRun: { id: string; status: string } | null;
+	verificationCurrent: boolean;
 };
 
 /** Builds everything the reviewer sees. Reads only; throws if the stored edits no longer apply. */
@@ -129,6 +130,10 @@ export async function loadReview(
 		};
 	});
 
+	const verificationCurrent = latest
+		? isVerificationCurrent(latest.createdAt, editTimes)
+		: false;
+
 	return {
 		files,
 		flags: findReviewFlags({
@@ -140,14 +145,13 @@ export async function loadReview(
 		blockers: approvalBlockers({
 			workflowStatus,
 			latestRunStatus: latest?.status ?? null,
-			verificationCurrent: latest
-				? isVerificationCurrent(latest.createdAt, editTimes)
-				: false,
+			verificationCurrent,
 		}),
 		editsHash: hashEdits(state.edits),
 		editCount: state.edits.length,
 		repairCount: repairs.length,
 		latestRun: latest ? { id: latest.id, status: latest.status } : null,
+		verificationCurrent,
 	};
 }
 

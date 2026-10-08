@@ -50,6 +50,20 @@
       "when": 1791409994197,
       "tag": "0006_cloudy_black_panther",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791411286167,
+      "tag": "0007_lowly_maestro",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791423259677,
+      "tag": "0008_public_steel_serpent",
+      "breakpoints": true
     }
   ]
 }

@@ -14,6 +14,9 @@ import {
 import { startVerification } from "@/lib/workflows/verify-changes";
 import { startRepair } from "@/lib/workflows/repair-changes";
 import { approveChanges, rejectChanges } from "@/lib/workflows/review-changes";
+import { startAiReview } from "@/lib/workflows/ai-review";
+import { createApprovedPullRequest } from "@/lib/workflows/create-pull-request";
+import { getGitHubAccessToken } from "@/lib/github/access-token";
 
 async function requestContext(formData: FormData) {
 	const session = await auth();
@@ -90,5 +93,18 @@ export async function rejectChangesAction(formData: FormData) {
 		.max(500)
 		.safeParse(formData.get("reason"));
 	if (reason.success) await rejectChanges(workflowId, userId, reason.data);
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function runAiReviewAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	await startAiReview(workflowId, userId);
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function createPullRequestAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	const accessToken = await getGitHubAccessToken();
+	await createApprovedPullRequest(workflowId, userId, accessToken);
 	redirect(`/workflows/${workflowId}`);
 }

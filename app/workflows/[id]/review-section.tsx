@@ -5,6 +5,9 @@ import { db } from "@/lib/db";
 import { changeApprovals } from "@/lib/db/schema";
 import { loadReview } from "@/lib/workflows/review-changes";
 import { approveChangesAction, rejectChangesAction } from "./actions";
+import { AiReviewBlock } from "./ai-review-block";
+import { PullRequestBlock } from "./pull-request-block";
+import { auth } from "@/auth";
 
 const LINE_TONE = {
   "+": "bg-green-500/10 text-green-700 dark:text-green-400",
@@ -51,6 +54,12 @@ export async function ReviewSection({
 
   const canDecide = status === "changes_generated";
   const editsChanged = decision ? decision.editsHash !== review.editsHash : false;
+  const session = await auth();
+  const userId = session?.user?.email ?? session?.user?.name ?? "unknown";
+  const canCreatePullRequest = status === "changes_approved" &&
+    decision?.decision === "approved" && !editsChanged &&
+    decision.decidedBy === `user:${userId}` &&
+    review.latestRun?.status === "passed" && review.verificationCurrent;
 
   return (
     <section className="space-y-4">
@@ -78,6 +87,8 @@ export async function ReviewSection({
           ))}
         </ul>
       )}
+
+      <AiReviewBlock workflowId={workflowId} editsHash={review.editsHash} />
 
       {review.files.map((file) => (
         <details key={file.path} open className="overflow-hidden rounded border">
@@ -131,6 +142,8 @@ export async function ReviewSection({
           )}
         </div>
       )}
+
+      <PullRequestBlock workflowId={workflowId} canCreate={canCreatePullRequest} />
 
       {canDecide && (
         <div className="space-y-3">

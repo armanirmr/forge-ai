@@ -130,8 +130,11 @@ export async function runAgent<I, O>(
 
 		validationAttempts += 1;
 		const parsed = def.outputSchema.safeParse(res.raw);
+		const output = parsed.success
+			? (def.normalizeOutput?.(input, parsed.data) ?? parsed.data)
+			: null;
 		const problems = parsed.success
-			? (def.semanticChecks?.(input, parsed.data) ?? [])
+			? (def.semanticChecks?.(input, output!) ?? [])
 			: [formatIssues(parsed.error)];
 
 		const usage = {
@@ -143,7 +146,7 @@ export async function runAgent<I, O>(
 
 		if (parsed.success && problems.length === 0) {
 			attempts.push({ status: "succeeded", ...usage });
-			return { ok: true, output: parsed.data, attempts };
+			return { ok: true, output: output!, attempts };
 		}
 
 		lastError = problems.join("; ");

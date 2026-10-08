@@ -4,7 +4,7 @@ An AI-assisted software delivery tool: it turns a requirement into a validated a
 
 ## Status
 
-Milestone 5A complete: requirement analysis, plans with approval, validated code edits, Docker verification, a capped repair loop, and a review view with a human approval or rejection gate. Nothing is applied to a repository. Not implemented: AI review, embeddings, PR creation.
+Milestone 5B complete. Milestone 6 implementation is in progress: approved edits can be published as a pull request to a public GitHub repository after current verification, edit hash, permission, and remote-file checks. ForgeAI never merges the PR. Embeddings are not implemented.
 
 ## Stack
 
