@@ -141,6 +141,7 @@ export const workflows = pgTable("workflows", {
 			"failed",
 			"verifying",
 			"repairing",
+			"cancelled",
 			"changes_approved",
 			"changes_rejected",
 		],

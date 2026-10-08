@@ -23,6 +23,7 @@ import {
 	recordVerification,
 } from "./verify-changes";
 import { loadWorkspaceState } from "./workspace";
+import { isWorkflowCancelled } from "./cancel";
 
 const MAX_CONTEXT_CHARS = 60_000;
 const MAX_REFERENCE_FILES = 6;
@@ -86,6 +87,9 @@ async function repairLoop(
 	const provider = await getProvider(userId);
 
 	for (;;) {
+		if (await isWorkflowCancelled(workflowId)) {
+			return { outcome: "cancelled", message: null };
+		}
 		const prior = await db
 			.select()
 			.from(repairAttempts)
@@ -235,8 +239,10 @@ async function repairLoop(
 		};
 
 		const agentResult = await runAgent(debuggerAgent, input, provider);
-
 		const aiRunId = await recordAiRuns(workflowId, agentResult.attempts);
+		if (await isWorkflowCancelled(workflowId)) {
+			return { outcome: "cancelled", message: null };
+		}
 
 		if (!agentResult.ok) {
 			// Provider or rate-limit failures are not repair attempts: stop without using one up.
@@ -321,6 +327,9 @@ async function repairLoop(
 		const started = Date.now();
 
 		const verification = await executeVerification(workflowId, repositoryId);
+		if (await isWorkflowCancelled(workflowId)) {
+			return { outcome: "cancelled", message: null };
+		}
 
 		const runId = await recordVerification(workflowId, verification, started);
 
@@ -403,10 +412,12 @@ export async function startRepair(
 			error: result.message,
 			updatedAt: new Date(),
 		})
-		.where(eq(workflows.id, workflowId));
+		.where(and(eq(workflows.id, workflowId), eq(workflows.status, "repairing")));
 
-	await logEvent(workflowId, "REPAIR_LOOP_ENDED", "system", {
-		outcome: result.outcome,
-		message: result.message,
-	});
+	if (result.outcome !== "cancelled") {
+		await logEvent(workflowId, "REPAIR_LOOP_ENDED", "system", {
+			outcome: result.outcome,
+			message: result.message,
+		});
+	}
 }

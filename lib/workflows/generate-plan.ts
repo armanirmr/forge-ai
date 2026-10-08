@@ -14,6 +14,7 @@ import {
 } from "@/lib/db/schema";
 import { retrieveContext } from "@/lib/repository/retrieve";
 import { redactSecrets } from "@/lib/security/redact";
+import { isWorkflowCancelled } from "./cancel";
 
 async function logEvent(
 	workflowId: string,
@@ -26,15 +27,16 @@ async function logEvent(
 
 /** A failed plan does not invalidate the analysis: go back so the user can retry. */
 async function revertToAnalysis(workflowId: string, message: string) {
-	await db
+	const [reset] = await db
 		.update(workflows)
 		.set({
 			status: "analysis_completed",
 			error: message,
 			updatedAt: new Date(),
 		})
-		.where(eq(workflows.id, workflowId));
-	await logEvent(workflowId, "PLAN_FAILED", "system", { error: message });
+		.where(and(eq(workflows.id, workflowId), eq(workflows.status, "planning")))
+		.returning({ id: workflows.id });
+	if (reset) await logEvent(workflowId, "PLAN_FAILED", "system", { error: message });
 }
 
 /** All reviewer feedback given on this workflow so far, oldest first. */
@@ -145,7 +147,6 @@ export async function startPlanning(
 			},
 			provider,
 		);
-
 		let lastRunId: string | null = null;
 		for (const a of result.attempts) {
 			const [run] = await db
@@ -164,31 +165,25 @@ export async function startPlanning(
 				.returning({ id: aiRuns.id });
 			lastRunId = run.id;
 		}
+		if (await isWorkflowCancelled(workflowId)) return;
 
 		if (!result.ok) {
 			await revertToAnalysis(workflowId, result.error);
 			return;
 		}
 
-		await db.insert(implementationPlans).values({
-			workflowId,
-			aiRunId: lastRunId,
-			result: result.output,
+		await db.transaction(async (tx) => {
+			const [completed] = await tx.update(workflows)
+				.set({ status: "plan_completed", updatedAt: new Date() })
+				.where(and(eq(workflows.id, workflowId), eq(workflows.status, "planning")))
+				.returning({ id: workflows.id });
+			if (!completed) return;
+			await tx.insert(implementationPlans).values({ workflowId, aiRunId: lastRunId, result: result.output });
+			await tx.insert(workflowEvents).values({
+				workflowId, type: "PLAN_GENERATED", actor: `agent:${implementationPlanner.name}`,
+				metadata: { attempts: result.attempts.length, tasks: result.output.tasks.length, redactions },
+			});
 		});
-		await db
-			.update(workflows)
-			.set({ status: "plan_completed", updatedAt: new Date() })
-			.where(eq(workflows.id, workflowId));
-		await logEvent(
-			workflowId,
-			"PLAN_GENERATED",
-			`agent:${implementationPlanner.name}`,
-			{
-				attempts: result.attempts.length,
-				tasks: result.output.tasks.length,
-				redactions,
-			},
-		);
 	} catch (err) {
 		await revertToAnalysis(
 			workflowId,

@@ -18,7 +18,7 @@ const models = {
 	anthropic: process.env.AI_PROVIDER === "anthropic" ? process.env.AI_MODEL ?? "claude-sonnet-4-6" : "claude-sonnet-4-6",
 };
 
-export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string; cleared?: string; setup?: string }> }) {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ error?: string; saved?: string; cleared?: string; setup?: string; accountRecovery?: string }> }) {
 	const session = await auth();
 	if (!session) redirect("/");
 	const [{ provider, model, hasEmbeddingKey } = { provider: null, model: null, hasEmbeddingKey: false }] = await db
@@ -49,6 +49,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 		<>
 			<ProductHeader active="settings" />
 			<main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-8 sm:px-6 sm:py-10">
+				{query.accountRecovery === "1" && <p role="status" className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">Your workspace history was restored, but saved AI credentials could not be moved securely. Enter your provider key again; the previous encrypted settings were left untouched.</p>}
 				<header className="max-w-3xl space-y-3 border-b border-border pb-7">
 					<p className="flex items-center gap-2 text-sm font-semibold tracking-wide text-primary"><Sparkles aria-hidden="true" className="size-4" /> PERSONAL WORKSPACE</p>
 					<h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">AI settings</h1>

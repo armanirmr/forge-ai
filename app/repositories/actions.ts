@@ -7,11 +7,12 @@ import { auth } from "@/auth";
 import { importRepository } from "@/lib/repository/ingest";
 import { getGitHubAccessToken } from "@/lib/github/access-token";
 import { db } from "@/lib/db";
-import { repositories } from "@/lib/db/schema";
+import { repositories, userAISettings, workflowEvents, workflows } from "@/lib/db/schema";
 import { requireAISetup } from "@/lib/ai/setup-status";
 import { getOwnedRepository } from "@/lib/security/tenant-access";
 import { verifyPersonalRepositoryOwner } from "@/lib/security/verified-github-repository";
 import { recoverLegacyWorkflowCreators } from "@/lib/security/legacy-workflow-recovery";
+import { decryptUserCredential, encryptUserCredential } from "@/lib/security/user-credentials";
 
 const Input = z.object({
 	owner: z.string().regex(/^[A-Za-z0-9_.-]+$/),
@@ -60,30 +61,92 @@ export async function restoreLegacyRepositoryAction(formData: FormData) {
 		githubRepoId: repositories.githubRepoId,
 		owner: repositories.owner,
 		name: repositories.name,
-	}).from(repositories).where(and(
-		eq(repositories.id, repositoryId.data),
-		isNull(repositories.ownerUserId),
-	));
+		ownerUserId: repositories.ownerUserId,
+	}).from(repositories).where(eq(repositories.id, repositoryId.data));
 	if (!legacy) redirect("/repositories");
 
-	let legacyLabels: string[];
 	try {
-		legacyLabels = await verifyPersonalRepositoryOwner(token, legacy, session.user.name);
+		await verifyPersonalRepositoryOwner(token, legacy, session.user.name);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "Could not verify the GitHub repository owner";
 		redirect(`/repositories?error=${encodeURIComponent(message)}`);
 	}
 
-	const [claimed] = await db.update(repositories)
-		.set({ ownerUserId: session.user.id, updatedAt: new Date() })
-		.where(and(
-			eq(repositories.id, legacy.id),
-			isNull(repositories.ownerUserId),
-		))
-		.returning({ id: repositories.id });
-	if (!claimed) redirect("/repositories?error=This+workspace+was+already+restored");
-	const recovered = await recoverLegacyWorkflowCreators(claimed.id, session.user.id, legacyLabels);
-	redirect(`/repositories/${claimed.id}?restored=1&recovered=${recovered}`);
+	const previousOwnerScope = legacy.ownerUserId === null
+		? isNull(repositories.ownerUserId)
+		: eq(repositories.ownerUserId, legacy.ownerUserId);
+	const restored = await db.transaction(async (tx) => {
+		const [alreadyOwned] = await tx.select({ id: repositories.id })
+			.from(repositories)
+			.where(and(
+				eq(repositories.githubRepoId, legacy.githubRepoId),
+				eq(repositories.ownerUserId, session.user.id),
+			));
+		if (alreadyOwned) return null;
+
+		const [claimed] = await tx.update(repositories)
+			.set({ ownerUserId: session.user.id, updatedAt: new Date() })
+			.where(and(eq(repositories.id, legacy.id), previousOwnerScope))
+			.returning({ id: repositories.id });
+		if (!claimed) return null;
+
+		let settingsRecovery: "none" | "migrated" | "needs_reentry" = "none";
+		if (legacy.ownerUserId && legacy.ownerUserId !== session.user.id) {
+			const [previousSettings] = await tx.select().from(userAISettings)
+				.where(eq(userAISettings.userId, legacy.ownerUserId));
+			if (previousSettings) {
+				const [currentSettings] = await tx.select({ userId: userAISettings.userId })
+					.from(userAISettings)
+					.where(eq(userAISettings.userId, session.user.id));
+				if (!currentSettings) {
+					let encryptedApiKey: string | null = null;
+					let encryptedEmbeddingApiKey: string | null = null;
+					try {
+						encryptedApiKey = encryptUserCredential(
+							session.user.id,
+							decryptUserCredential(legacy.ownerUserId, previousSettings.encryptedApiKey),
+						);
+						encryptedEmbeddingApiKey = previousSettings.encryptedEmbeddingApiKey
+							? encryptUserCredential(
+								session.user.id,
+								decryptUserCredential(legacy.ownerUserId, previousSettings.encryptedEmbeddingApiKey),
+							)
+							: null;
+					} catch {
+						settingsRecovery = "needs_reentry";
+					}
+					if (encryptedApiKey !== null) {
+						await tx.insert(userAISettings).values({
+							userId: session.user.id,
+							provider: previousSettings.provider,
+							model: previousSettings.model,
+							encryptedApiKey,
+							encryptedEmbeddingApiKey,
+							updatedAt: new Date(),
+						}).onConflictDoNothing();
+						settingsRecovery = "migrated";
+					}
+				}
+			}
+		}
+
+		const recoveredWorkflows = await tx.update(workflows)
+			.set({ createdByUserId: session.user.id })
+			.where(eq(workflows.repositoryId, claimed.id))
+			.returning({ id: workflows.id });
+		if (recoveredWorkflows.length > 0) {
+			await tx.insert(workflowEvents).values(recoveredWorkflows.map(({ id }) => ({
+				workflowId: id,
+				type: "WORKFLOW_OWNERSHIP_RECOVERED",
+				actor: `user:${session.user.id}`,
+				metadata: { repositoryId: claimed.id },
+			})));
+		}
+		return { id: claimed.id, count: recoveredWorkflows.length, settingsRecovery };
+	});
+	if (!restored) redirect("/repositories?error=This+workspace+was+already+restored");
+	if (restored.settingsRecovery === "needs_reentry") redirect("/settings?setup=1&accountRecovery=1");
+	redirect(`/repositories/${restored.id}?restored=1&recovered=${restored.count}`);
 }
 
 export async function recoverLegacyWorkflowsAction(formData: FormData) {

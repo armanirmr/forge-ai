@@ -45,9 +45,9 @@ function elapsedLabel(seconds: number) {
 }
 
 export function WorkflowProgress({
-  status, startedAt, pullRequestStatus, pullRequestNumber,
+  status, startedAt, pullRequestStatus, pullRequestNumber, watchFrom,
 }: {
-  status: string; startedAt: string; pullRequestStatus?: string; pullRequestNumber?: number | null;
+  status: string; startedAt: string; pullRequestStatus?: string; pullRequestNumber?: number | null; watchFrom?: string;
 }) {
   const router = useRouter();
   const illustrationRef = useRef<HTMLDivElement>(null);
@@ -55,21 +55,22 @@ export function WorkflowProgress({
   const [illustrationActive, setIllustrationActive] = useState(false);
   const creating = status === "changes_approved" && pullRequestStatus === "creating";
   const active = running.has(status) || creating;
+  const watchingStart = Boolean(watchFrom && status === watchFrom);
   const index = currentStep[status] ?? 0;
   const complete = status === "changes_approved" && pullRequestStatus === "created" ? 4 : doneThrough[status] ?? -1;
   const failed = ["failed", "changes_rejected"].includes(status) || pullRequestStatus === "failed";
   const title = creating ? "Creating the pull request" :
     pullRequestStatus === "created" ? `Pull request${pullRequestNumber ? ` #${pullRequestNumber}` : ""} created` :
-    pullRequestStatus === "failed" ? "Pull request creation failed" : titles[status] ?? "Workflow in progress";
+    pullRequestStatus === "failed" ? "Pull request creation failed" : status === "cancelled" ? "Workflow cancelled" : titles[status] ?? "Workflow in progress";
 
   useEffect(() => {
-    if (!active) return;
+    if (!active && !watchingStart) return;
     const tick = () => setSeconds(Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000)));
     tick();
     const timer = window.setInterval(tick, 1000);
     const refresh = window.setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, 5000);
     return () => { window.clearInterval(timer); window.clearInterval(refresh); };
-  }, [active, router, startedAt]);
+  }, [active, router, startedAt, watchingStart]);
 
   useEffect(() => {
     const element = illustrationRef.current;
@@ -113,7 +114,7 @@ export function WorkflowProgress({
       <div className="flex flex-wrap items-center justify-between gap-6 border-t pt-4">
         <div className="min-w-0 flex-1">
           <h2 className="text-xl font-semibold tracking-tight">{title}</h2>
-          <p className="mt-1 text-base leading-7 text-muted-foreground">{creating ? "Publishing approved changes to GitHub. The pull request will not be merged." : pullRequestStatus === "created" ? "The pull request is ready on GitHub and has not been merged." : details[status] ?? "The workflow is being updated."}</p>
+          <p className="mt-1 text-base leading-7 text-muted-foreground">{creating ? "Publishing approved changes to GitHub. The pull request will not be merged." : pullRequestStatus === "created" ? "The pull request is ready on GitHub and has not been merged." : status === "cancelled" ? "The run was stopped. Any completed analysis, plan or draft remains available." : details[status] ?? "The workflow is being updated."}</p>
         </div>
         {active && <p className="font-mono text-sm tabular-nums text-muted-foreground" role="timer" aria-live="off">{elapsedLabel(seconds)} elapsed</p>}
         <div ref={illustrationRef} className={`workflow-art hidden w-44 shrink-0 sm:block ${active && illustrationActive ? "is-active" : ""}`} aria-hidden="true">

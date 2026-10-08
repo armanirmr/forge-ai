@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import GitHub from "next-auth/providers/github";
+import { stableUserSubject } from "@/lib/auth/identity";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
 	secret: process.env.NEXTAUTH_SECRET,
@@ -14,6 +15,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 	],
 	callbacks: {
 		jwt({ token, account }) {
+			// Without a database adapter Auth.js creates a new random user ID on every
+			// OAuth sign-in. Use GitHub's stable account ID for all app ownership keys.
+			token.sub = stableUserSubject(token.sub, account);
 			if (account?.access_token) token.accessToken = account.access_token;
 			return token;
 		},

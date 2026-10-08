@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import { auth } from "@/auth";
 import {
@@ -16,9 +17,11 @@ import { startRepair } from "@/lib/workflows/repair-changes";
 import { approveChanges, rejectChanges } from "@/lib/workflows/review-changes";
 import { startAiReview } from "@/lib/workflows/ai-review";
 import { createApprovedPullRequest } from "@/lib/workflows/create-pull-request";
+import { retryRequirementAnalysis } from "@/lib/workflows/analyze-requirement";
 import { getGitHubAccessToken } from "@/lib/github/access-token";
 import { requireAISetup } from "@/lib/ai/setup-status";
 import { getOwnedWorkflow } from "@/lib/security/tenant-access";
+import { cancelWorkflow } from "@/lib/workflows/cancel";
 
 async function requestContext(formData: FormData) {
 	const session = await auth();
@@ -38,8 +41,8 @@ async function requestContext(formData: FormData) {
 export async function generatePlanAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
 	await requireAISetup(userId);
-	await startPlanning(workflowId, userId);
-	redirect(`/workflows/${workflowId}`);
+	after(async () => startPlanning(workflowId, userId));
+	redirect(`/workflows/${workflowId}?watchFrom=analysis_completed`);
 }
 
 export async function approvePlanAction(formData: FormData) {
@@ -51,8 +54,8 @@ export async function approvePlanAction(formData: FormData) {
 export async function generateCodeAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
 	await requireAISetup(userId);
-	await startCodeGeneration(workflowId, userId);
-	redirect(`/workflows/${workflowId}`);
+	after(async () => startCodeGeneration(workflowId, userId));
+	redirect(`/workflows/${workflowId}?watchFrom=plan_approved`);
 }
 
 export async function requestPlanChangesAction(formData: FormData) {
@@ -64,26 +67,24 @@ export async function requestPlanChangesAction(formData: FormData) {
 		.min(1)
 		.max(2000)
 		.safeParse(formData.get("feedback"));
-	if (
-		feedback.success &&
-		(await requestPlanChanges(workflowId, userId, feedback.data))
-	) {
-		await startPlanning(workflowId, userId, feedback.data);
+	if (feedback.success && await requestPlanChanges(workflowId, userId, feedback.data)) {
+		after(async () => startPlanning(workflowId, userId, feedback.data));
+		redirect(`/workflows/${workflowId}?watchFrom=analysis_completed`);
 	}
 	redirect(`/workflows/${workflowId}`);
 }
 
 export async function verifyChangesAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
-	await startVerification(workflowId, userId);
-	redirect(`/workflows/${workflowId}`);
+	after(async () => startVerification(workflowId, userId));
+	redirect(`/workflows/${workflowId}?watchFrom=changes_generated`);
 }
 
 export async function repairChangesAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
 	await requireAISetup(userId);
-	await startRepair(workflowId, userId);
-	redirect(`/workflows/${workflowId}`);
+	after(async () => startRepair(workflowId, userId));
+	redirect(`/workflows/${workflowId}?watchFrom=changes_generated`);
 }
 
 export async function approveChangesAction(formData: FormData) {
@@ -108,6 +109,19 @@ export async function runAiReviewAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
 	await requireAISetup(userId);
 	await startAiReview(workflowId, userId);
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function retryAnalysisAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	await requireAISetup(userId);
+	await retryRequirementAnalysis(workflowId, userId);
+	redirect(`/workflows/${workflowId}`);
+}
+
+export async function cancelWorkflowAction(formData: FormData) {
+	const { workflowId, userId } = await requestContext(formData);
+	await cancelWorkflow(workflowId, userId);
 	redirect(`/workflows/${workflowId}`);
 }
 

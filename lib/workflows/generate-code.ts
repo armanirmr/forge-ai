@@ -17,6 +17,7 @@ import {
 } from "@/lib/db/schema";
 import { redactSecrets } from "@/lib/security/redact";
 import { collectImportClosure } from "@/lib/repository/local-imports";
+import { isWorkflowCancelled } from "./cancel";
 
 const MAX_CONTEXT_CHARS = 60_000;
 const MAX_REFERENCE_PER_DIR = 3;
@@ -67,11 +68,12 @@ export async function approvePlan(
 
 /** A failed generation does not invalidate the approval: go back so the user can retry. */
 async function revertToApproved(workflowId: string, message: string) {
-	await db
+	const [reset] = await db
 		.update(workflows)
 		.set({ status: "plan_approved", error: message, updatedAt: new Date() })
-		.where(eq(workflows.id, workflowId));
-	await logEvent(workflowId, "CODE_GENERATION_FAILED", "system", {
+		.where(and(eq(workflows.id, workflowId), eq(workflows.status, "generating")))
+		.returning({ id: workflows.id });
+	if (reset) await logEvent(workflowId, "CODE_GENERATION_FAILED", "system", {
 		error: message,
 	});
 }
@@ -247,7 +249,6 @@ export async function startCodeGeneration(
 			},
 			provider,
 		);
-
 		let lastRunId: string | null = null;
 		for (const a of result.attempts) {
 			const [run] = await db
@@ -266,30 +267,25 @@ export async function startCodeGeneration(
 				.returning({ id: aiRuns.id });
 			lastRunId = run.id;
 		}
+		if (await isWorkflowCancelled(workflowId)) return;
 
 		if (!result.ok) {
 			await revertToApproved(workflowId, result.error);
 			return;
 		}
 
-		await db.insert(codeChanges).values({
-			workflowId,
-			aiRunId: lastRunId,
-			result: result.output,
+		await db.transaction(async (tx) => {
+			const [completed] = await tx.update(workflows)
+				.set({ status: "changes_generated", updatedAt: new Date() })
+				.where(and(eq(workflows.id, workflowId), eq(workflows.status, "generating")))
+				.returning({ id: workflows.id });
+			if (!completed) return;
+			await tx.insert(codeChanges).values({ workflowId, aiRunId: lastRunId, result: result.output });
+			await tx.insert(workflowEvents).values({
+				workflowId, type: "CODE_GENERATED", actor: `agent:${codeGenerator.name}`,
+				metadata: { attempts: result.attempts.length, edits: result.output.edits.length },
+			});
 		});
-		await db
-			.update(workflows)
-			.set({ status: "changes_generated", updatedAt: new Date() })
-			.where(eq(workflows.id, workflowId));
-		await logEvent(
-			workflowId,
-			"CODE_GENERATED",
-			`agent:${codeGenerator.name}`,
-			{
-				attempts: result.attempts.length,
-				edits: result.output.edits.length,
-			},
-		);
 	} catch (err) {
 		await revertToApproved(
 			workflowId,

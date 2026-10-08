@@ -6,6 +6,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { RequirementAnalysisSchema } from "@/ai/schemas/requirement-analysis";
 import { Badge } from "@/components/ui/badge";
+import { AsyncSubmitButton } from "@/components/async-submit-button";
 import { ProductHeader } from "@/components/product-header";
 import { requireAISetup } from "@/lib/ai/setup-status";
 import { CooldownRegistration } from "@/components/cooldown-provider";
@@ -24,6 +25,7 @@ import { ChangesSection } from "./changes-section";
 import { VerificationSection } from "./verification-section";
 import { RepairSection } from "./repair-section";
 import { ReviewSection } from "./review-section";
+import { cancelWorkflowAction, retryAnalysisAction } from "./actions";
 
 function HistoryDetails({ title, children, open = false }: { title: string; children: ReactNode; open?: boolean }) {
   return <details className="history-details" open={open}><summary>{title}</summary><div className="history-details-content">{children}</div></details>;
@@ -46,12 +48,12 @@ function List({ title, items }: { title: string; items: string[] }) {
   );
 }
 
-export default async function WorkflowPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WorkflowPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ watchFrom?: string }> }) {
   const session = await auth();
   if (!session) redirect("/");
   await requireAISetup(session.user.id);
 
-  const { id } = await params;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
   if (!z.string().uuid().safeParse(id).success) notFound();
 
   const owned = await getOwnedWorkflow(id, session.user.id);
@@ -114,6 +116,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
               wf.status === "changes_generated" ? "Changes ready" :
               wf.status === "changes_approved" ? "Changes approved" :
               wf.status === "changes_rejected" ? "Changes rejected" :
+              wf.status === "cancelled" ? "Cancelled" :
               wf.status === "failed" ? "Failed" :
               wf.status === "analyzing" ? "Analyzing" :
               wf.status === "planning" ? "Planning" :
@@ -130,6 +133,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
 
       <WorkflowProgress
         status={wf.status}
+        watchFrom={query.watchFrom}
         pullRequestStatus={pullRequest?.status}
         pullRequestNumber={pullRequest?.pullNumber}
         startedAt={(pullRequest?.status === "creating"
@@ -139,10 +143,31 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
             : wf.updatedAt).toISOString()}
       />
 
+      {["analyzing", "planning", "generating", "verifying", "repairing"].includes(wf.status) && (
+        <form action={cancelWorkflowAction} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-card px-4 py-3">
+          <input type="hidden" name="workflowId" value={wf.id} />
+          <p className="text-sm text-muted-foreground">Stop this run at its next safe checkpoint. The draft and history remain available.</p>
+          <AsyncSubmitButton variant="outline" pendingLabel="Stopping…" pendingMessage="The workflow will stop at the next safe checkpoint.">
+            Cancel workflow
+          </AsyncSubmitButton>
+        </form>
+      )}
+
       {wf.status === "failed" && (
-        <div role="alert" className="rounded border border-destructive/50 p-4 text-sm text-destructive">
-          <p className="font-medium">Analysis failed. Nothing was saved as a result.</p>
+        <div className="space-y-3 rounded border border-destructive/50 p-4 text-sm">
+          <p role="alert" className="font-medium text-destructive">Analysis failed. Nothing was saved as a result.</p>
           <p className="mt-1 break-words">{wf.error}</p>
+          <form action={retryAnalysisAction}>
+            <input type="hidden" name="workflowId" value={wf.id} />
+            <AsyncSubmitButton
+              variant="outline"
+              pendingLabel="Retrying analysis…"
+              pendingMessage="Repeating analysis with this requirement and the current repository context."
+            >
+              Retry analysis
+            </AsyncSubmitButton>
+          </form>
+          <p className="text-xs text-muted-foreground">The retry is recorded in this workflow’s timeline; any AI runs remain in AI activity.</p>
         </div>
       )}
 

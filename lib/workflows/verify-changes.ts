@@ -10,6 +10,7 @@ import { isSafeRelativePath } from "@/lib/verify/safe-path";
 import { selectChecks } from "@/lib/verify/select-checks";
 import { VERIFY_STALE_MS, type VerificationResult } from "@/lib/verify/types";
 import { loadWorkspaceState } from "./workspace";
+import { isWorkflowCancelled } from "./cancel";
 
 export async function logEvent(
 	workflowId: string,
@@ -153,11 +154,12 @@ export async function startVerification(
 	const started = Date.now();
 	try {
 		const result = await executeVerification(workflowId, claimed.repositoryId);
+		if (await isWorkflowCancelled(workflowId)) return;
 		await recordVerification(workflowId, result, started);
 	} finally {
 		await db
 			.update(workflows)
 			.set({ status: "changes_generated", updatedAt: new Date() })
-			.where(eq(workflows.id, workflowId));
+			.where(and(eq(workflows.id, workflowId), eq(workflows.status, "verifying")));
 	}
 }

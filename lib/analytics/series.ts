@@ -77,7 +77,7 @@ export function buildWorkflowActivitySeries(
 		if (activeStatuses.has(row.status)) points[index].active += 1;
 		else if (reviewStatuses.has(row.status)) points[index].review += 1;
 		else if (row.status === "changes_approved") points[index].approved += 1;
-		else if (row.status === "changes_rejected" || row.status === "failed") points[index].closed += 1;
+		else if (row.status === "changes_rejected" || row.status === "failed" || row.status === "cancelled") points[index].closed += 1;
 	}
 
 	return points;

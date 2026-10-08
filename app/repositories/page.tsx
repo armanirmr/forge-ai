@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, count, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { ArrowUpRight, Clock3, Code2, GitBranch, GitFork, FolderCode, Layers3, Plus, Star } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -15,7 +15,7 @@ import { codeChunks, repositories, repositoryFiles, workflows } from "@/lib/db/s
 import { listOwnedRepos } from "@/lib/github/client";
 import { getGitHubAccessToken } from "@/lib/github/access-token";
 import { EMBEDDING_MODEL } from "@/lib/repository/embeddings";
-import { requireAISetup } from "@/lib/ai/setup-status";
+import { getAISetupStatus } from "@/lib/ai/setup-status";
 import { importRepositoryAction, restoreLegacyRepositoryAction } from "./actions";
 
 type LocalRepository = {
@@ -24,6 +24,12 @@ type LocalRepository = {
   indexedFiles: number;
   workflowCount: number;
   chunkCount: number;
+};
+
+type PreviousWorkspace = {
+  id: string;
+  owner: string;
+  workflowCount: number;
 };
 
 function formatUpdatedAt(value: string | null) {
@@ -56,7 +62,7 @@ export default async function RepositoriesPage({
 }) {
   const session = await auth();
   if (!session) redirect("/");
-  await requireAISetup(session.user.id);
+  const aiSetup = await getAISetupStatus(session.user.id);
   const accessToken = await getGitHubAccessToken();
   if (!accessToken) redirect("/");
   const { error } = await searchParams;
@@ -123,19 +129,24 @@ export default async function RepositoriesPage({
   }
 
   const importedCount = repos.filter((repo) => localByGitHubId.has(String(repo.githubRepoId))).length;
-	const legacyRepositories = repos.length
+	const previousWorkspaces = repos.length
 		? await db.select({
 			id: repositories.id,
 			githubRepoId: repositories.githubRepoId,
 			owner: repositories.owner,
-		}).from(repositories).where(and(
-			isNull(repositories.ownerUserId),
-			inArray(repositories.githubRepoId, repos.map((repo) => repo.githubRepoId)),
-		))
+			workflowCount: count(workflows.id),
+		}).from(repositories)
+			.leftJoin(workflows, eq(workflows.repositoryId, repositories.id))
+			.where(inArray(repositories.githubRepoId, repos.map((repo) => repo.githubRepoId)))
+			.groupBy(repositories.id, repositories.githubRepoId, repositories.owner)
 		: [];
-	const restorableByGitHubId = new Map(
-		legacyRepositories.map((repository) => [String(repository.githubRepoId), repository]),
-	);
+	const previousByGitHubId = new Map<string, PreviousWorkspace[]>();
+	for (const workspace of previousWorkspaces) {
+		const key = String(workspace.githubRepoId);
+		const group = previousByGitHubId.get(key) ?? [];
+		group.push({ id: workspace.id, owner: workspace.owner, workflowCount: workspace.workflowCount });
+		previousByGitHubId.set(key, group);
+	}
   const totalWorkflows = repos.reduce(
     (total, repo) => total + (localByGitHubId.get(String(repo.githubRepoId))?.workflowCount ?? 0),
     0,
@@ -173,14 +184,16 @@ export default async function RepositoriesPage({
             {error ?? listError}
           </p>
         )}
+        {!aiSetup.ready && <p role="status" className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground">Set up an AI provider in Settings to import repositories and run workflows. You can restore an existing workspace without AI setup.</p>}
         {metricsError && <p className="text-sm text-muted-foreground">{metricsError}</p>}
 
         {repos.length > 0 ? (
           <ul className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
             {repos.map((repo) => {
               const local = localByGitHubId.get(String(repo.githubRepoId));
-              const legacy = restorableByGitHubId.get(String(repo.githubRepoId));
-              const canRestore = !local && legacy?.owner.toLowerCase() === repo.owner.toLowerCase();
+              const previous = (previousByGitHubId.get(String(repo.githubRepoId)) ?? [])
+                .filter((workspace) => workspace.owner.toLowerCase() === repo.owner.toLowerCase());
+              const canRestore = !local && previous.length > 0;
               return (
                 <li key={repo.githubRepoId} className="min-w-0">
                   <Card className="h-full gap-0 border border-border/80 py-0 transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5">
@@ -246,10 +259,17 @@ export default async function RepositoriesPage({
                       ) : canRestore ? (
                         <>
                           <span className="text-sm text-muted-foreground">Previous Changeweft workspace</span>
-                          <form action={restoreLegacyRepositoryAction}>
-                            <input type="hidden" name="repositoryId" value={legacy.id} />
-                            <Button type="submit" size="sm"><ArrowUpRight aria-hidden="true" />Restore workspace</Button>
-                          </form>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            {previous.map((workspace) => (
+                              <form key={workspace.id} action={restoreLegacyRepositoryAction}>
+                                <input type="hidden" name="repositoryId" value={workspace.id} />
+                                <Button type="submit" size="sm">
+                                  <ArrowUpRight aria-hidden="true" />
+                                  Restore {number.format(workspace.workflowCount)} workflow{workspace.workflowCount === 1 ? "" : "s"}
+                                </Button>
+                              </form>
+                            ))}
+                          </div>
                         </>
                       ) : (
                         <>

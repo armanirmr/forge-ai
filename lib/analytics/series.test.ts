@@ -14,12 +14,13 @@ describe("analytics time series", () => {
 		const series = buildWorkflowActivitySeries([
 			{ status: "changes_approved", createdAt: new Date("2026-10-05T10:00:00.000Z") },
 			{ status: "failed", createdAt: new Date("2026-10-06T10:00:00.000Z") },
+			{ status: "cancelled", createdAt: new Date("2026-10-06T11:00:00.000Z") },
 			{ status: "planning", createdAt: new Date("2026-09-28T10:00:00.000Z") },
 			{ status: "changes_rejected", createdAt: new Date("2026-08-01T10:00:00.000Z") },
 		], start, now, "week");
 
 		expect(series).toHaveLength(8);
-		expect(series.at(-1)).toMatchObject({ active: 0, review: 0, approved: 1, closed: 1 });
+		expect(series.at(-1)).toMatchObject({ active: 0, review: 0, approved: 1, closed: 2 });
 		expect(series.at(-2)).toMatchObject({ active: 1, review: 0, approved: 0, closed: 0 });
 		expect(series[0]).toMatchObject({ active: 0, review: 0, approved: 0, closed: 0 });
 	});
