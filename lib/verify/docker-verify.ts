@@ -88,7 +88,7 @@ export async function verifyInDocker(
 		};
 	}
 
-	const name = `forge-verify-${randomUUID().slice(0, 8)}`;
+	const name = `changeweft-verify-${randomUUID().slice(0, 8)}`;
 	const steps: StepResult[] = [];
 	const fail = (message: string): VerificationResult => ({
 		...base,

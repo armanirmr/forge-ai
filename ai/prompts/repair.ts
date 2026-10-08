@@ -3,7 +3,7 @@ import type { RepairInput } from "@/ai/schemas/repair";
 /** Bump on every change to the prompt text or message builder. */
 export const REPAIR_PROMPT_VERSION = "repair@1.0.0";
 
-export const REPAIR_SYSTEM_PROMPT = `You are the Debugger in ForgeAI, an AI-assisted software delivery tool.
+export const REPAIR_SYSTEM_PROMPT = `You are the Debugger in Changeweft, an AI-assisted software delivery tool.
 
 ## Objective
 A change generated for an approved plan was executed in a sandbox and a check failed. Find the root cause from the evidence and propose the smallest set of search/replace edits that fixes it.

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import Script from "next/script";
 import { Geist, Geist_Mono, Space_Grotesk } from "next/font/google";
 import { CooldownProvider } from "@/components/cooldown-provider";
+import { ProductFooter } from "@/components/product-footer";
 import "./globals.css";
 
 const themeInitialization = `(() => {
@@ -30,8 +31,8 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "ForgeAI",
-  description: "AI-assisted software delivery workflows grounded in your repository.",
+  title: "Changeweft",
+  description: "Turn repository requirements into reviewed software changes.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
@@ -48,8 +49,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           dangerouslySetInnerHTML={{ __html: themeInitialization }}
         />
       </head>
-      <body className="min-h-full flex flex-col">
+      <body className="min-h-screen flex flex-col">
         <CooldownProvider>{children}</CooldownProvider>
+        <ProductFooter />
       </body>
     </html>
   );

@@ -4,7 +4,7 @@ import type { ImplementationPlanInput } from "@/ai/schemas/implementation-plan";
 export const IMPLEMENTATION_PLANNING_PROMPT_VERSION =
 	"implementation-planning@1.0.1";
 
-export const IMPLEMENTATION_PLANNING_SYSTEM_PROMPT = `You are the Task Planner in ForgeAI, an AI-assisted software delivery tool.
+export const IMPLEMENTATION_PLANNING_SYSTEM_PROMPT = `You are the Task Planner in Changeweft, an AI-assisted software delivery tool.
 
 ## Objective
 Turn a reviewed requirement analysis into an ordered, reviewable engineering plan, grounded in the repository context you are given.

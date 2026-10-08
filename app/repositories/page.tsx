@@ -118,8 +118,8 @@ export default async function RepositoriesPage({
       });
     }
   } catch (cause) {
-    console.error("Failed to load ForgeAI repository metrics", cause);
-    metricsError = "ForgeAI index metrics are unavailable. Check the database connection and server logs.";
+    console.error("Failed to load Changeweft repository metrics", cause);
+    metricsError = "Changeweft index metrics are unavailable. Check the database connection and server logs.";
   }
 
   const importedCount = repos.filter((repo) => localByGitHubId.has(String(repo.githubRepoId))).length;
@@ -160,7 +160,7 @@ export default async function RepositoriesPage({
               <strong className="tabular-nums">{repos.length}</strong> available
             </span>
             <span className="rounded-lg border border-border bg-card px-3 py-2">
-              <strong className="tabular-nums">{importedCount}</strong> in ForgeAI
+              <strong className="tabular-nums">{importedCount}</strong> in Changeweft
             </span>
             <span className="rounded-lg border border-border bg-card px-3 py-2">
               <strong className="tabular-nums">{totalWorkflows}</strong> workflows
@@ -238,14 +238,14 @@ export default async function RepositoriesPage({
                     <CardFooter className="mt-auto justify-between gap-3 border-t border-border/70 bg-muted/30 px-5 py-3">
                       {local ? (
                         <>
-                          <span className="text-sm text-muted-foreground">Indexed in ForgeAI</span>
+                          <span className="text-sm text-muted-foreground">Indexed in Changeweft</span>
                           <Link href={`/repositories/${local.id}`} className="inline-flex h-9 items-center gap-2 rounded-lg bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover">
                             Open workspace <ArrowUpRight aria-hidden="true" className="size-4" />
                           </Link>
                         </>
                       ) : canRestore ? (
                         <>
-                          <span className="text-sm text-muted-foreground">Previous ForgeAI workspace</span>
+                          <span className="text-sm text-muted-foreground">Previous Changeweft workspace</span>
                           <form action={restoreLegacyRepositoryAction}>
                             <input type="hidden" name="repositoryId" value={legacy.id} />
                             <Button type="submit" size="sm"><ArrowUpRight aria-hidden="true" />Restore workspace</Button>

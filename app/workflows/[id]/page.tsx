@@ -81,7 +81,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ id: s
     : null;
 
   return (
-    <div className="relative isolate min-h-screen">
+    <div className="relative isolate flex-1">
     <div className="workflow-atmosphere" aria-hidden="true" />
     <CooldownRegistration error={wf.error} occurredAt={wf.updatedAt} scope={`workflow:${wf.id}`} />
     <div className="relative z-10">

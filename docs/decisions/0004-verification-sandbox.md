@@ -4,7 +4,7 @@
 
 - Generated changes are verified in a throwaway Docker container, never on the host.
 - Commands come from package.json scripts (typecheck, lint, test) and are chosen by
-  ForgeAI. The model never supplies commands.
+  Changeweft. The model never supplies commands.
 - Dependencies install with network access and `--ignore-scripts`. The container is then
   disconnected from the network, and a DNS probe must confirm isolation before any check runs.
 - Resource limits: 1 GB memory, 1 CPU, 512 processes, all capabilities dropped except CHOWN,

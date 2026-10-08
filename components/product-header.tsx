@@ -14,8 +14,8 @@ export function ProductHeader({ active = "repositories", children }: ProductHead
     <header className="border-b border-border bg-card text-card-foreground">
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-8 px-4 sm:px-6">
         <Link href="/repositories" className="flex shrink-0 items-center gap-2.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          <span aria-hidden="true" className="grid size-8 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground">F</span>
-          <span className="text-lg font-semibold tracking-tight">ForgeAI</span>
+          <span aria-hidden="true" className="grid size-8 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground">C</span>
+          <span className="text-lg font-semibold tracking-tight">Changeweft</span>
         </Link>
 
         <nav aria-label="Main navigation" className="flex h-full items-center gap-1">

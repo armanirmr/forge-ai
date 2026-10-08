@@ -10,7 +10,7 @@ export type PullRequestFile = {
 type RemoteFile = { content: string | null; mode: string; type: string };
 
 export function pullRequestBranchName(workflowId: string, editsHash: string): string {
-	return `forgeai/${workflowId.slice(0, 8)}-${editsHash.slice(0, 10)}`;
+	return `changeweft/${workflowId.slice(0, 8)}-${editsHash.slice(0, 10)}`;
 }
 
 export function assertRemoteFilesMatch(
@@ -148,7 +148,7 @@ export async function createGitHubPullRequest(
 	const { data: commit } = await client.rest.git.createCommit({
 		owner,
 		repo,
-		message: `${title}\n\nForgeAI workflow ${workflowId}\nApproved edits ${editsHash}`,
+		message: `${title}\n\nChangeweft workflow ${workflowId}\nApproved edits ${editsHash}`,
 		tree: nextTree.sha,
 		parents: [baseSha],
 	});

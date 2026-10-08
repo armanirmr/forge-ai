@@ -132,7 +132,7 @@ export async function VerificationSection({
           {!latest.data.cleanupOk && (
             <p className="text-xs text-red-600">
               The sandbox container could not be removed. Run <code>docker ps -a</code> and remove any
-              <code> forge-verify-*</code> container.
+              <code> changeweft-verify-*</code> container.
             </p>
           )}
         </div>

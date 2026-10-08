@@ -1,12 +1,12 @@
-# ForgeAI
+# Changeweft
 
-ForgeAI turns a software requirement into a repository-grounded, reviewable change. It guides a developer through analysis, planning, code generation, isolated verification, repair, human review, and (after explicit approval) pull request creation. Generated output is validated before it becomes workflow state; AI review is advisory and never approves or blocks a change.
+Changeweft turns a software requirement into a repository-grounded, reviewable change. It guides a developer through analysis, planning, code generation, isolated verification, repair, human review, and (after explicit approval) pull request creation. Generated output is validated before it becomes workflow state; AI review is advisory and never approves or blocks a change.
 
 ## Current project status
 
 The repository records Milestones 5B and 6 as complete, including an advisory AI change review and a public-repository pull request flow that was validated with a merged PR. Repository Intelligence (Phase 3) uses Gemini Embedding 2 and pgvector for hybrid semantic and keyword search. Phase 9 adds advisory security, code, and architecture review with limited indexed repository context. Phase 12 provides read-only workflow analytics.
 
-Recent product work improves the workflow and repository screens: visible workflow stage and elapsed time, pending-action feedback, a shared navigation header, a light/dark theme toggle, a persistent provider-cooldown countdown and completion sound, and repository cards with GitHub and ForgeAI metrics. The working tree may contain uncommitted work; see [Project memory](docs/project-memory.md) for the full state and continuation notes.
+Recent product work improves the workflow and repository screens: visible workflow stage and elapsed time, pending-action feedback, a shared navigation header, a light/dark theme toggle, a persistent provider-cooldown countdown and completion sound, and repository cards with GitHub and Changeweft metrics. The working tree may contain uncommitted work; see [Project memory](docs/project-memory.md) for the full state and continuation notes.
 
 ## Product capabilities
 
@@ -14,7 +14,7 @@ Recent product work improves the workflow and repository screens: visible workfl
 - Requirement analysis grounded in repository retrieval, followed by a draft implementation plan with human review and approval.
 - Validated code edits, verification in an isolated Docker environment, and a bounded repair loop.
 - A review view with explicit human approval or rejection; AI change review remains an opinion.
-- Pull request creation only after approval and current verification. ForgeAI does not merge pull requests.
+- Pull request creation only after approval and current verification. Changeweft does not merge pull requests.
 - Gemini Embedding 2 (768 dimensions), pgvector, and hybrid semantic/keyword repository search.
 - Workflow analytics for AI calls and tokens, repairs, generated test-file paths, test executions, workflow states, approval duration, and approval rate. Definitions and limitations are in [decision 0011](docs/decisions/0011-workflow-analytics.md).
 - Workflow detail screens that make the current stage, wait duration, and next action clear while keeping detailed evidence available on demand.
@@ -89,7 +89,7 @@ Never commit `.env.local`, provider keys, OAuth secrets, or access tokens. Use p
 
 - AI provider adapters return unvalidated output. `runAgent` owns schema and semantic validation; do not store raw model output as application state.
 - Repository content is untrusted and may be partial or stale. Secret redaction runs before code context is sent to providers.
-- Approval is a human boundary. AI review, successful verification, and PR creation do not replace the human decision; ForgeAI never merges.
+- Approval is a human boundary. AI review, successful verification, and PR creation do not replace the human decision; Changeweft never merges.
 - The UI reports request elapsed time and recorded workflow stages. It does not claim token streaming or percentage completion because the server does not provide that information.
 - Repositories imported before the ownership migration can be restored by the verified GitHub owner; see [security notes](docs/security.md).
 - See [security notes](docs/security.md), [AI workflows](docs/ai-workflows.md), [architecture](docs/architecture.md), and [decision records](docs/decisions/) for detail.

@@ -7,8 +7,8 @@ export default async function Home() {
   if (session) redirect("/repositories");
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-xl flex-col justify-center gap-6 p-8">
-      <h1 className="text-3xl font-semibold">ForgeAI</h1>
+    <main className="mx-auto flex w-full max-w-xl flex-1 flex-col justify-center gap-6 p-8">
+      <h1 className="text-3xl font-semibold">Changeweft</h1>
       <p className="text-muted-foreground">
         AI-assisted software delivery with validation and human approval.
       </p>

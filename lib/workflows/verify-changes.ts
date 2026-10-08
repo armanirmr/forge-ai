@@ -21,7 +21,7 @@ export async function logEvent(
 }
 
 async function writeWorkspace(files: Map<string, string>): Promise<string> {
-	const root = await mkdtemp(join(tmpdir(), "forge-verify-"));
+	const root = await mkdtemp(join(tmpdir(), "changeweft-verify-"));
 	for (const [rel, content] of files) {
 		const target = resolve(root, rel);
 		if (!target.startsWith(root + sep)) throw new Error(`Unsafe path: ${rel}`);

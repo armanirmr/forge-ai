@@ -52,23 +52,23 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 				<header className="max-w-3xl space-y-3 border-b border-border pb-7">
 					<p className="flex items-center gap-2 text-sm font-semibold tracking-wide text-primary"><Sparkles aria-hidden="true" className="size-4" /> PERSONAL WORKSPACE</p>
 					<h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">AI settings</h1>
-					<p className="text-base leading-7 text-muted-foreground">Connect your own provider credentials. ForgeAI uses them for your workflow requests and repository indexing.</p>
+					<p className="text-base leading-7 text-muted-foreground">Connect your own provider credentials. Changeweft uses them for your workflow requests and repository indexing.</p>
 				</header>
 
 				{query.error && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm text-destructive">{query.error.replaceAll("+", " ")}</p>}
 				{query.saved && <p role="status" className="flex items-center gap-2 rounded-lg border border-emerald-600/30 bg-emerald-500/5 p-4 text-sm"><Check aria-hidden="true" className="size-4 text-emerald-600" /> Saved successfully. Your account settings are active for new AI operations.</p>}
-				{query.cleared && <p role="status" className="rounded-lg border border-border bg-muted/40 p-4 text-sm">Personal credentials removed. ForgeAI will use server defaults when configured.</p>}
+				{query.cleared && <p role="status" className="rounded-lg border border-border bg-muted/40 p-4 text-sm">Personal credentials removed. Changeweft will use server defaults when configured.</p>}
 				{showSetupGuide && <Card className="border-primary/30 bg-primary/[0.035] shadow-sm">
 					<CardHeader>
-						<p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{hasChat && hasEmbedding ? "Quick setup guide" : "Get ForgeAI ready · 4 steps"}</p>
+						<p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{hasChat && hasEmbedding ? "Quick setup guide" : "Get Changeweft ready · 4 steps"}</p>
 						<CardTitle className="font-heading text-xl">{hasChat && hasEmbedding ? "Your AI setup is ready" : "Connect your AI providers before you begin"}</CardTitle>
-						<CardDescription className="max-w-3xl text-sm leading-6">ForgeAI needs a chat provider for analysis and code workflows, plus Google Gemini Embedding 2 for repository import and semantic search. Follow these steps; your keys stay private and are never displayed after saving.</CardDescription>
+						<CardDescription className="max-w-3xl text-sm leading-6">Changeweft needs a chat provider for analysis and code workflows, plus Google Gemini Embedding 2 for repository import and semantic search. Follow these steps; your keys stay private and are never displayed after saving.</CardDescription>
 					</CardHeader>
 					<CardContent className="grid gap-3 sm:grid-cols-2">
 						<SetupStep number="1" title="Choose a chat provider" detail="Pick Gemini, Groq, OpenAI, or Anthropic in the form below." ready={hasChat} />
 						<SetupStep number="2" title="Add its API key and model" detail="Create an API key with the provider, choose a model ID, and enter both below." ready={hasChat} />
 						<SetupStep number="3" title="Set up repository embeddings" detail={hasEmbedding ? embeddingSource : "Add a Google AI Studio key below. Gemini chat keys can also power embeddings automatically."} ready={hasEmbedding} />
-						<SetupStep number="4" title="Save and start building" detail="Save your settings. ForgeAI will confirm the active providers, then return to Repositories." ready={hasChat && hasEmbedding} />
+						<SetupStep number="4" title="Save and start building" detail="Save your settings. Changeweft will confirm the active providers, then return to Repositories." ready={hasChat && hasEmbedding} />
 					</CardContent>
 				</Card>}
 
@@ -90,7 +90,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
 				<div className="grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(17rem,0.8fr)]">
 					<Card className="border-border/80">
-						<CardHeader><CardTitle className="font-heading text-xl">Provider credentials</CardTitle><CardDescription>Only providers supported by ForgeAI’s current adapters are listed.</CardDescription></CardHeader>
+						<CardHeader><CardTitle className="font-heading text-xl">Provider credentials</CardTitle><CardDescription>Only providers supported by Changeweft’s current adapters are listed.</CardDescription></CardHeader>
 						<CardContent>
 							<form action={saveAISettingsAction} className="space-y-6">
 								<div className="grid gap-4 sm:grid-cols-2">
@@ -109,7 +109,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 									<span className="block text-xs font-normal text-muted-foreground">{provider ? "A saved key is on file. Enter a new one to rotate it." : "The key is required to use your personal provider settings."} Create keys at <a className="text-primary underline underline-offset-4" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">Google AI Studio</a>, <a className="text-primary underline underline-offset-4" href="https://console.groq.com/keys" target="_blank" rel="noreferrer">Groq</a>, <a className="text-primary underline underline-offset-4" href="https://platform.openai.com/api-keys" target="_blank" rel="noreferrer">OpenAI API Platform</a>, or <a className="text-primary underline underline-offset-4" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">Anthropic Console</a>. OpenAI API billing is separate from ChatGPT subscriptions.</span>
 								</label>
 								<div className="space-y-3 rounded-xl border border-border/80 bg-muted/25 p-4">
-									<div><h3 className="font-medium">Repository embeddings</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">ForgeAI currently uses Gemini Embedding 2 for repository imports and semantic search.</p></div>
+									<div><h3 className="font-medium">Repository embeddings</h3><p className="mt-1 text-sm leading-6 text-muted-foreground">Changeweft currently uses Gemini Embedding 2 for repository imports and semantic search.</p></div>
 									<label className="block space-y-2 text-sm font-medium">Google AI Studio key <span className="font-normal text-muted-foreground">(optional if using Gemini chat)</span>
 										<input name="embeddingApiKey" type="password" autoComplete="new-password" spellCheck={false} placeholder={hasEmbeddingKey ? "Leave blank to keep the saved key" : "Paste a Google key for embeddings"} className="h-11 w-full rounded-lg border border-input bg-background px-3 text-base font-normal outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring" />
 									</label>

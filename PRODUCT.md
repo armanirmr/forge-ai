@@ -12,7 +12,7 @@ Individual developers managing their own connected repositories and AI-assisted 
 
 ## Product Purpose
 
-ForgeAI turns a software requirement into validated analysis and a draft implementation plan grounded in a connected GitHub repository. The product also supports implementation, verification, repair, review, approval, and pull request steps in a workflow. Success means users can move from a requirement to a trustworthy, reviewable software change while understanding each workflow step.
+Changeweft turns a software requirement into validated analysis and a draft implementation plan grounded in a connected GitHub repository. The product also supports implementation, verification, repair, review, approval, and pull request steps in a workflow. Success means users can move from a requirement to a trustworthy, reviewable software change while understanding each workflow step.
 
 ## Positioning
 
@@ -25,7 +25,7 @@ Users connect GitHub repositories, submit requirements, review generated analyse
 ## Capabilities and Constraints
 
 - Next.js App Router, TypeScript, Tailwind, shadcn/ui, PostgreSQL with Drizzle, Auth.js (GitHub), Zod, and Vitest.
-- ForgeAI is for individual accounts for now. Repositories and workflows belong to one signed-in account; shared team workspaces and member roles are out of scope.
+- Changeweft is for individual accounts for now. Repositories and workflows belong to one signed-in account; shared team workspaces and member roles are out of scope.
 - Existing workflow actions and authorization behavior must remain intact during the workflow-screen redesign.
 - Clear live feedback for AI work is a primary design goal.
 - The product supports repository indexing and retrieval, workflow verification and repair, advisory AI reviews, and analytics, as documented in README.md.

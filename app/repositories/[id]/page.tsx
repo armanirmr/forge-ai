@@ -165,7 +165,7 @@ export default async function RepositoryPage({
           <div className="space-y-2">
             <p className="inline-flex items-center gap-2 text-sm font-semibold text-primary"><Sparkles aria-hidden="true" className="size-4" /> Start with a change</p>
             <h2 id="requirement-title" className="font-heading text-2xl font-semibold sm:text-3xl">What should this repository do next?</h2>
-            <p className="max-w-2xl text-base text-muted-foreground">Describe the outcome. ForgeAI will inspect the codebase and turn your request into a reviewable analysis.</p>
+            <p className="max-w-2xl text-base text-muted-foreground">Describe the outcome. Changeweft will inspect the codebase and turn your request into a reviewable analysis.</p>
           </div>
 
           {error && <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p>}
@@ -287,7 +287,7 @@ export default async function RepositoryPage({
         <section aria-labelledby="indexed-files-title" className="space-y-4 border-t border-border pt-7 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
           <div className="space-y-1">
             <h2 id="indexed-files-title" className="font-heading text-xl font-semibold">Repository map</h2>
-            <p className="text-sm text-muted-foreground">Files available to ForgeAI for retrieval.</p>
+            <p className="text-sm text-muted-foreground">Files available to Changeweft for retrieval.</p>
           </div>
           <details className="group rounded-lg border border-border bg-card">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">

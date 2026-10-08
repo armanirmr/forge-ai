@@ -3,7 +3,7 @@ import type { CodeGenerationInput } from "@/ai/schemas/code-generation";
 /** Bump on every change to the prompt text or message builder. */
 export const CODE_GENERATION_PROMPT_VERSION = "code-generation@1.0.2";
 
-export const CODE_GENERATION_SYSTEM_PROMPT = `You are the Code Generator in ForgeAI, an AI-assisted software delivery tool.
+export const CODE_GENERATION_SYSTEM_PROMPT = `You are the Code Generator in Changeweft, an AI-assisted software delivery tool.
 
 ## Objective
 Implement an APPROVED implementation plan as a set of precise search/replace edits against the repository files you are given.

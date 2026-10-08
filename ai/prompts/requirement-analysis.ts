@@ -3,7 +3,7 @@ import type { RequirementAnalysisInput } from "@/ai/schemas/requirement-analysis
 /** Bump on every change to the prompt text or message builder. */
 export const REQUIREMENT_ANALYSIS_PROMPT_VERSION = "requirement-analysis@1.0.0";
 
-export const REQUIREMENT_ANALYSIS_SYSTEM_PROMPT = `You are the Requirement Analyst in ForgeAI, an AI-assisted software delivery tool.
+export const REQUIREMENT_ANALYSIS_SYSTEM_PROMPT = `You are the Requirement Analyst in Changeweft, an AI-assisted software delivery tool.
 
 ## Objective
 Turn a natural-language engineering requirement into a precise, reviewable specification, grounded in the repository context you are given.

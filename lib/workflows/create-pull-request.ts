@@ -97,7 +97,7 @@ export async function createApprovedPullRequest(
 			.orderBy(desc(changeReviews.createdAt)).limit(1);
 		const cleanRequirement = redactSecrets(wf.requirement).text;
 		const body = redactSecrets([
-			"## ForgeAI change summary",
+			"## Changeweft change summary",
 			"",
 			cleanRequirement,
 			"",
@@ -112,14 +112,14 @@ export async function createApprovedPullRequest(
 			"",
 			`Approved by ${approval.decidedBy} on ${approval.createdAt.toISOString()} for edits hash \`${review.editsHash}\`.`,
 			"",
-			"ForgeAI does not merge pull requests.",
+			"Changeweft does not merge pull requests.",
 		].join("\n")).text;
 		const result = await createGitHubPullRequest(new Octokit({ auth: accessToken }), {
 			owner: repo.owner,
 			repo: repo.name,
 			workflowId,
 			editsHash: review.editsHash,
-			title: `ForgeAI: ${cleanRequirement.split(/\r?\n/)[0].slice(0, 100) || "implement approved changes"}`,
+			title: `Changeweft: ${cleanRequirement.split(/\r?\n/)[0].slice(0, 100) || "implement approved changes"}`,
 			body,
 			files,
 		});
