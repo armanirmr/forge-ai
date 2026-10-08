@@ -61,6 +61,7 @@ async function repairLoop(
 	workflowId: string,
 	repositoryId: string,
 	requirement: string,
+	userId: string,
 ): Promise<LoopResult> {
 	const [repo] = await db
 		.select()
@@ -82,7 +83,7 @@ async function repairLoop(
 	if (!plan.success)
 		throw new Error("Stored plan no longer matches the current schema");
 
-	const provider = getProvider();
+	const provider = await getProvider(userId);
 
 	for (;;) {
 		const prior = await db
@@ -386,6 +387,7 @@ export async function startRepair(
 			workflowId,
 			claimed.repositoryId,
 			claimed.requirement,
+			userId,
 		);
 	} catch (err) {
 		result = {

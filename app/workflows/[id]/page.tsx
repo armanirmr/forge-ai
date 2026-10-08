@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { RequirementAnalysisSchema } from "@/ai/schemas/requirement-analysis";
 import { Badge } from "@/components/ui/badge";
 import { ProductHeader } from "@/components/product-header";
+import { requireAISetup } from "@/lib/ai/setup-status";
 import { CooldownRegistration } from "@/components/cooldown-provider";
 import { db } from "@/lib/db";
 import {
@@ -49,6 +50,7 @@ function List({ title, items }: { title: string; items: string[] }) {
 export default async function WorkflowPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   if (!session) redirect("/");
+  await requireAISetup(session.user.id);
 
   const { id } = await params;
   if (!z.string().uuid().safeParse(id).success) notFound();

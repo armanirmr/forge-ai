@@ -17,9 +17,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 			if (account?.access_token) token.accessToken = account.access_token;
 			return token;
 		},
-		session({ session }) {
+		session({ session, token }) {
 			// Keep provider credentials in the encrypted JWT cookie, never in the
 			// session response returned by /api/auth/session.
+			if (session.user && token.sub) session.user.id = token.sub;
 			return session;
 		},
 	},

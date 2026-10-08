@@ -55,7 +55,7 @@ export async function startRequirementAnalysis(
 			.where(eq(repositories.id, repositoryId));
 		if (!repo) throw new Error("Repository not found");
 
-		const ctx = await retrieveContext(repositoryId, requirement);
+		const ctx = await retrieveContext(repositoryId, requirement, { userId });
 
 		let redactions = 0;
 		const snippets = ctx.snippets.map((s) => {
@@ -89,7 +89,7 @@ export async function startRequirementAnalysis(
 			redactions,
 		});
 
-		const provider = getProvider();
+		const provider = await getProvider(userId);
 		const result = await runAgent(
 			requirementAnalyst,
 			{

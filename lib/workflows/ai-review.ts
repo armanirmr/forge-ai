@@ -157,7 +157,7 @@ export async function startAiReview(
 					...analysis.data.acceptanceCriteria,
 					"Existing implementation and test coverage relevant to this change",
 				].join("\n").slice(0, 7000),
-				{ limit: MAX_REVIEW_CONTEXT_SNIPPETS, maxTreeEntries: 0 },
+				{ limit: MAX_REVIEW_CONTEXT_SNIPPETS, maxTreeEntries: 0, userId },
 			);
 			let remaining = MAX_REVIEW_CONTEXT_CHARS;
 			const snippets = context.snippets.flatMap((snippet) => {
@@ -221,7 +221,7 @@ export async function startAiReview(
 			omittedPaths: diff.omittedPaths,
 		};
 
-		const agentResult = await runAgent(changeReviewer, input, getProvider());
+		const agentResult = await runAgent(changeReviewer, input, await getProvider(userId));
 		if (agentResult.attempts.length > 0) {
 			aiRunId = await recordAiRuns(workflowId, agentResult.attempts);
 		}

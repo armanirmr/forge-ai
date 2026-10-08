@@ -28,6 +28,18 @@ export const repositories = pgTable("repositories", {
 		.defaultNow(),
 });
 
+export const userAISettings = pgTable("user_ai_settings", {
+	userId: text("user_id").primaryKey(),
+	provider: text("provider", { enum: ["gemini", "groq", "openai", "anthropic"] }).notNull(),
+	model: text("model").notNull(),
+	encryptedApiKey: text("encrypted_api_key").notNull(),
+	encryptedEmbeddingApiKey: text("encrypted_embedding_api_key"),
+	createdAt: createdAt(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});
+
 export const repositoryFiles = pgTable(
 	"repository_files",
 	{

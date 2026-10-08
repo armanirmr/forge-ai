@@ -18,6 +18,8 @@ Recent product work improves the workflow and repository screens: visible workfl
 - Gemini Embedding 2 (768 dimensions), pgvector, and hybrid semantic/keyword repository search.
 - Workflow analytics for AI calls and tokens, repairs, generated test-file paths, test executions, workflow states, approval duration, and approval rate. Definitions and limitations are in [decision 0011](docs/decisions/0011-workflow-analytics.md).
 - Workflow detail screens that make the current stage, wait duration, and next action clear while keeping detailed evidence available on demand.
+- First-run AI setup that guides signed-in users through chat-provider and repository-embedding credentials before repository features that depend on them.
+- Per-account AI settings for Gemini, Groq, OpenAI, and Anthropic chat adapters, with encrypted credentials and a separate Gemini Embedding 2 key when needed.
 
 ## Stack
 
@@ -40,7 +42,7 @@ Prerequisites: Node.js/npm, Docker Desktop, a GitHub OAuth application, and an A
    Copy-Item .env.example .env.local
    ```
 
-   Set `DATABASE_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `AI_PROVIDER`, `AI_API_KEY`, and `AI_MODEL`. The GitHub OAuth callback for local development is `http://localhost:3000/api/auth/callback/github`.
+   Set `DATABASE_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and `NEXTAUTH_URL`. `AI_PROVIDER`, `AI_API_KEY`, and `AI_MODEL` are optional server defaults; signed-in users can configure their own supported provider keys in Settings. The GitHub OAuth callback for local development is `http://localhost:3000/api/auth/callback/github`.
 
 3. Apply database migrations and start the app:
 
@@ -55,11 +57,11 @@ Never commit `.env.local`, provider keys, OAuth secrets, or access tokens. Use p
 
 ## AI provider configuration
 
-`lib/ai/config.ts` currently supports `gemini` and `groq`. Groq uses the OpenAI-compatible adapter and `AI_BASE_URL` defaults to `https://api.groq.com/openai/v1`. Strict schema output can be disabled for compatible providers with `AI_STRICT_SCHEMA=false`; schema validation still happens in the application. Gemini Embedding 2 uses a separate `EMBEDDING_API_KEY`, or reuses `AI_API_KEY` when the chat provider is Gemini.
+`lib/ai/config.ts` supports Gemini, Groq, OpenAI, and Anthropic for chat. Groq and OpenAI use the OpenAI-compatible adapter; Anthropic uses its Messages API with structured JSON outputs. Signed-in users can save their chat provider, model, and API key at `/settings`; account settings override the optional server defaults below. ChatGPT subscriptions do not include OpenAI API usage, which has separate API billing. Strict schema output can be disabled for compatible providers with `AI_STRICT_SCHEMA=false`; application validation always remains enabled. Repository imports and semantic search always use Gemini Embedding 2, so Groq, OpenAI, and Anthropic users need a Google AI Studio embedding key unless the server has one configured. A Gemini chat key can be reused for embeddings. Credentials saved in the UI are encrypted at rest; see [security notes](docs/security.md).
 
 | Variable | Purpose |
 | --- | --- |
-| `AI_PROVIDER` | `gemini` or `groq` |
+| `AI_PROVIDER` | `gemini`, `groq`, `openai`, or `anthropic` |
 | `AI_API_KEY` | Key for the configured chat provider |
 | `AI_MODEL` | Provider model identifier |
 | `AI_BASE_URL` | Optional OpenAI-compatible endpoint override |

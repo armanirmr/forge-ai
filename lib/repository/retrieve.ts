@@ -72,7 +72,7 @@ export type RetrievedContext = {
 export async function retrieveContext(
 	repositoryId: string,
 	requirement: string,
-	{ limit = 8, maxTreeEntries = 300 } = {},
+	{ limit = 8, maxTreeEntries = 300, userId }: { limit?: number; maxTreeEntries?: number; userId?: string } = {},
 ): Promise<RetrievedContext> {
 	const keywords = extractKeywords(requirement);
 
@@ -83,7 +83,7 @@ export async function retrieveContext(
 		.orderBy(asc(repositoryFiles.path));
 	const fileTree = paths.slice(0, maxTreeEntries).map((p) => p.path);
 
-	const queryVector = await embedCodeQuery(requirement);
+	const queryVector = await embedCodeQuery(requirement, userId);
 	const distance = cosineDistance(codeChunks.embedding, queryVector);
 	const semanticRows = await db
 		.select({

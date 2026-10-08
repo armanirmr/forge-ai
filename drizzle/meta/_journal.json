@@ -71,6 +71,13 @@
       "when": 1791424602260,
       "tag": "0009_lyrical_polaris",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791447491509,
+      "tag": "0010_user_ai_settings",
+      "breakpoints": true
     }
   ]
 }

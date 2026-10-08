@@ -1,9 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { signOut } from "@/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { Button } from "@/components/ui/button";
 
 type ProductHeaderProps = {
-  active?: "repositories" | "analytics";
+  active?: "repositories" | "analytics" | "settings";
   children?: ReactNode;
 };
 
@@ -39,10 +41,24 @@ export function ProductHeader({ active = "repositories", children }: ProductHead
           >
             Analytics
           </Link>
+          <Link
+            href="/settings"
+            aria-current={active === "settings" ? "page" : undefined}
+            className={`flex h-full items-center border-b-2 px-3 text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+              active === "settings"
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Settings
+          </Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
           {children}
+          <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
+            <Button variant="outline" size="sm" type="submit">Sign out</Button>
+          </form>
           <ThemeToggle />
         </div>
       </div>

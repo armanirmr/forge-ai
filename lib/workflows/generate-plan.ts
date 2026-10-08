@@ -108,6 +108,7 @@ export async function startPlanning(
 		const ctx = await retrieveContext(
 			claimed.repositoryId,
 			claimed.requirement,
+			{ userId },
 		);
 		let redactions = 0;
 		const snippets = ctx.snippets.map((s) => {
@@ -125,7 +126,7 @@ export async function startPlanning(
 		const fb = effectiveFeedback ? redactSecrets(effectiveFeedback) : null;
 		if (fb) redactions += fb.redactions;
 
-		const provider = getProvider();
+		const provider = await getProvider(userId);
 		const result = await runAgent(
 			implementationPlanner,
 			{

@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { count, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { ArrowUpRight, Clock3, Code2, GitBranch, GitFork, FolderCode, Layers3, Plus, Star } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { auth, signOut } from "@/auth";
+import { auth } from "@/auth";
 import { CooldownRegistration } from "@/components/cooldown-provider";
 import { ProductHeader } from "@/components/product-header";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import { codeChunks, repositories, repositoryFiles, workflows } from "@/lib/db/s
 import { listOwnedRepos } from "@/lib/github/client";
 import { getGitHubAccessToken } from "@/lib/github/access-token";
 import { EMBEDDING_MODEL } from "@/lib/repository/embeddings";
+import { requireAISetup } from "@/lib/ai/setup-status";
 import { importRepositoryAction } from "./actions";
 
 type LocalRepository = {
@@ -54,6 +56,7 @@ export default async function RepositoriesPage({
 }) {
   const session = await auth();
   if (!session) redirect("/");
+  await requireAISetup(session.user.id);
   const accessToken = await getGitHubAccessToken();
   if (!accessToken) redirect("/");
   const { error } = await searchParams;
@@ -69,16 +72,30 @@ export default async function RepositoriesPage({
   const localByGitHubId = new Map<string, LocalRepository>();
   let metricsError: string | null = null;
   try {
+    const metricsRepository = alias(repositories, "metrics_repository");
+    const indexedFilesQuery = db
+      .select({ value: sql<number>`count(*)::int` })
+      .from(repositoryFiles)
+      .where(eq(repositoryFiles.repositoryId, metricsRepository.id));
+    const chunkCountQuery = db
+      .select({ value: sql<number>`count(*)::int` })
+      .from(codeChunks)
+      .innerJoin(repositoryFiles, eq(codeChunks.repositoryFileId, repositoryFiles.id))
+      .where(and(
+        eq(repositoryFiles.repositoryId, metricsRepository.id),
+        eq(codeChunks.embeddingModel, EMBEDDING_MODEL),
+        isNotNull(codeChunks.embedding),
+      ));
     const [localRepositories, workflowCounts] = await Promise.all([
       db
         .select({
-          githubRepoId: repositories.githubRepoId,
-          id: repositories.id,
-          defaultBranch: repositories.defaultBranch,
-          indexedFiles: sql<number>`(select count(*)::int from ${repositoryFiles} where ${repositoryFiles.repositoryId} = ${repositories.id})`,
-          chunkCount: sql<number>`(select count(*)::int from ${codeChunks} inner join ${repositoryFiles} on ${codeChunks.repositoryFileId} = ${repositoryFiles.id} where ${repositoryFiles.repositoryId} = ${repositories.id} and ${codeChunks.embeddingModel} = ${EMBEDDING_MODEL} and ${codeChunks.embedding} is not null)`,
+          githubRepoId: metricsRepository.githubRepoId,
+          id: metricsRepository.id,
+          defaultBranch: metricsRepository.defaultBranch,
+          indexedFiles: sql<number>`(${indexedFilesQuery})`,
+          chunkCount: sql<number>`(${chunkCountQuery})`,
         })
-        .from(repositories),
+        .from(metricsRepository),
       db
         .select({ repositoryId: workflows.repositoryId, workflowCount: count() })
         .from(workflows)
@@ -94,8 +111,9 @@ export default async function RepositoriesPage({
         workflowCount: workflowCountByLocalId.get(local.id) ?? 0,
       });
     }
-  } catch {
-    metricsError = "ForgeAI index metrics are temporarily unavailable.";
+  } catch (cause) {
+    console.error("Failed to load ForgeAI repository metrics", cause);
+    metricsError = "ForgeAI index metrics are unavailable. Check the database connection and server logs.";
   }
 
   const importedCount = repos.filter((repo) => localByGitHubId.has(String(repo.githubRepoId))).length;
@@ -108,11 +126,7 @@ export default async function RepositoriesPage({
   return (
     <>
       <CooldownRegistration error={error ?? null} occurredAt={null} scope="repository-import" />
-      <ProductHeader>
-        <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
-          <Button variant="outline" size="sm" type="submit">Sign out</Button>
-        </form>
-      </ProductHeader>
+      <ProductHeader />
       <main className="mx-auto w-full max-w-7xl space-y-8 px-4 py-7 sm:px-6 sm:py-10">
         <header className="flex flex-col justify-between gap-5 border-b border-border pb-6 sm:flex-row sm:items-end">
           <div className="space-y-2">

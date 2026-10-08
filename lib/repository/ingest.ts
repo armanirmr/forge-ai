@@ -26,6 +26,7 @@ export async function importRepository(
 	token: string,
 	owner: string,
 	name: string,
+	userId: string,
 ): Promise<ImportResult> {
 	const octokit = githubClient(token);
 
@@ -90,6 +91,7 @@ export async function importRepository(
 			endLine: chunk.endLine,
 			content: chunk.content,
 		})),
+		userId,
 	);
 
 	return db.transaction(async (tx) => {

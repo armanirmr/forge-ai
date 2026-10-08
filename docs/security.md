@@ -1,0 +1,7 @@
+# Provider credentials
+
+Signed-in users can save a Gemini, Groq, OpenAI, or Anthropic chat key and model in Settings. OpenAI uses the OpenAI-compatible Chat Completions API adapter; Anthropic uses its Messages API with structured JSON outputs. ForgeAI also supports an optional Google AI Studio key for Gemini Embedding 2, which is used for repository import and semantic search regardless of the selected chat provider. Keys are encrypted with AES-256-GCM before database storage. The encryption key is derived from `NEXTAUTH_SECRET` with HKDF-SHA256, and the user ID is authenticated as associated data so ciphertext cannot be moved between accounts. Key values are never included in the Settings page response or application logs; they are decrypted server-side only for provider calls.
+
+Changing `NEXTAUTH_SECRET` makes previously stored credentials undecryptable. Users must re-enter their keys after such a rotation. Removing personal settings deletes their saved ciphertext and returns to the optional server defaults (`AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, and `EMBEDDING_API_KEY`). The application does not validate a key with a provider when it is saved; provider errors appear when the next relevant operation runs.
+
+The Settings form accepts only the Gemini, Groq, OpenAI, and Anthropic chat adapters. It does not accept a custom endpoint, so user input cannot redirect provider requests to arbitrary hosts. Repository embeddings remain fixed to Gemini Embedding 2 and 768 dimensions. OpenAI API access and billing are separate from ChatGPT subscriptions.

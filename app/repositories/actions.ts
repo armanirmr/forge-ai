@@ -8,6 +8,7 @@ import { getGitHubAccessToken } from "@/lib/github/access-token";
 import { db } from "@/lib/db";
 import { repositories } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { requireAISetup } from "@/lib/ai/setup-status";
 
 const Input = z.object({
 	owner: z.string().regex(/^[A-Za-z0-9_.-]+$/),
@@ -17,6 +18,7 @@ const Input = z.object({
 export async function importRepositoryAction(formData: FormData) {
 	const session = await auth();
 	if (!session) redirect("/");
+	await requireAISetup(session.user.id);
 	const token = await getGitHubAccessToken();
 	if (!token) redirect("/");
 
@@ -32,6 +34,7 @@ export async function importRepositoryAction(formData: FormData) {
 			token,
 			parsed.data.owner,
 			parsed.data.name,
+			session.user.id,
 		);
 		repositoryId = result.repositoryId;
 	} catch (err) {
@@ -44,6 +47,7 @@ export async function importRepositoryAction(formData: FormData) {
 export async function reindexRepositoryAction(formData: FormData) {
 	const session = await auth();
 	if (!session) redirect("/");
+	await requireAISetup(session.user.id);
 	const token = await getGitHubAccessToken();
 	if (!token) redirect("/");
 	const repositoryId = z.string().uuid().safeParse(formData.get("repositoryId"));
@@ -52,7 +56,7 @@ export async function reindexRepositoryAction(formData: FormData) {
 		.from(repositories).where(eq(repositories.id, repositoryId.data));
 	if (!repo) redirect("/repositories");
 	try {
-		await importRepository(token, repo.owner, repo.name);
+		await importRepository(token, repo.owner, repo.name, session.user.id);
 	} catch (err) {
 		const message = err instanceof Error ? err.message : "Re-index failed";
 		redirect(`/repositories/${repositoryId.data}?error=${encodeURIComponent(message)}`);
@@ -63,6 +67,7 @@ export async function reindexRepositoryAction(formData: FormData) {
 export async function searchRepositoryAction(formData: FormData) {
 	const session = await auth();
 	if (!session) redirect("/");
+	await requireAISetup(session.user.id);
 	const repositoryId = z.string().uuid().safeParse(formData.get("repositoryId"));
 	const query = z.string().trim().min(3).max(500).safeParse(formData.get("query"));
 	if (!repositoryId.success || !query.success) redirect("/repositories");

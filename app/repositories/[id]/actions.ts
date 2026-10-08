@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { auth } from "@/auth";
 import { startRequirementAnalysis } from "@/lib/workflows/analyze-requirement";
+import { requireAISetup } from "@/lib/ai/setup-status";
 
 const Input = z.object({
 	repositoryId: z.string().uuid(),
@@ -13,6 +14,7 @@ const Input = z.object({
 export async function createRequirementAction(formData: FormData) {
 	const session = await auth();
 	if (!session) redirect("/");
+	await requireAISetup(session.user.id);
 
 	const parsed = Input.safeParse({
 		repositoryId: formData.get("repositoryId"),
@@ -25,7 +27,7 @@ export async function createRequirementAction(formData: FormData) {
 		);
 	}
 
-	const userId = session.user?.email ?? session.user?.name ?? "unknown";
+	const userId = session.user.id;
 	const workflowId = await startRequirementAnalysis(
 		parsed.data.repositoryId,
 		parsed.data.requirement,

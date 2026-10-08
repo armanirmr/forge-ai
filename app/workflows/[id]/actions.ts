@@ -17,6 +17,7 @@ import { approveChanges, rejectChanges } from "@/lib/workflows/review-changes";
 import { startAiReview } from "@/lib/workflows/ai-review";
 import { createApprovedPullRequest } from "@/lib/workflows/create-pull-request";
 import { getGitHubAccessToken } from "@/lib/github/access-token";
+import { requireAISetup } from "@/lib/ai/setup-status";
 
 async function requestContext(formData: FormData) {
 	const session = await auth();
@@ -27,12 +28,13 @@ async function requestContext(formData: FormData) {
 
 	return {
 		workflowId: parsed.data,
-		userId: session.user?.email ?? session.user?.name ?? "unknown",
+		userId: session.user.id,
 	};
 }
 
 export async function generatePlanAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
+	await requireAISetup(userId);
 	await startPlanning(workflowId, userId);
 	redirect(`/workflows/${workflowId}`);
 }
@@ -45,12 +47,14 @@ export async function approvePlanAction(formData: FormData) {
 
 export async function generateCodeAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
+	await requireAISetup(userId);
 	await startCodeGeneration(workflowId, userId);
 	redirect(`/workflows/${workflowId}`);
 }
 
 export async function requestPlanChangesAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
+	await requireAISetup(userId);
 	const feedback = z
 		.string()
 		.trim()
@@ -74,6 +78,7 @@ export async function verifyChangesAction(formData: FormData) {
 
 export async function repairChangesAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
+	await requireAISetup(userId);
 	await startRepair(workflowId, userId);
 	redirect(`/workflows/${workflowId}`);
 }
@@ -98,6 +103,7 @@ export async function rejectChangesAction(formData: FormData) {
 
 export async function runAiReviewAction(formData: FormData) {
 	const { workflowId, userId } = await requestContext(formData);
+	await requireAISetup(userId);
 	await startAiReview(workflowId, userId);
 	redirect(`/workflows/${workflowId}`);
 }

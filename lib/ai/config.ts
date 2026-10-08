@@ -1,33 +1,37 @@
 import { GeminiProvider } from "@/ai/providers/gemini";
+import { AnthropicProvider } from "@/ai/providers/anthropic";
 import { OpenAICompatibleProvider } from "@/ai/providers/openai-compatible";
 import type { AIProvider } from "@/ai/providers/types";
 import { paceProvider } from "@/lib/ai/pacing";
+import { getEffectiveAISettings } from "@/lib/ai/user-settings";
 
-function createBaseProvider(): AIProvider {
-	const name = process.env.AI_PROVIDER;
-	if (!name) throw new Error("AI_PROVIDER is not set in .env.local");
-	const apiKey = process.env.AI_API_KEY;
-	if (!apiKey) throw new Error("AI_API_KEY is not set in .env.local");
-	const model = process.env.AI_MODEL;
-	if (!model) throw new Error("AI_MODEL is not set in .env.local");
-
-	switch (name) {
+async function createBaseProvider(userId: string): Promise<AIProvider> {
+	const settings = await getEffectiveAISettings(userId);
+	switch (settings.provider) {
 		case "gemini":
-			return new GeminiProvider(apiKey, model);
+			return new GeminiProvider(settings.apiKey, settings.model);
 		case "groq":
 			return new OpenAICompatibleProvider(
 				"groq",
-				apiKey,
-				model,
-				process.env.AI_BASE_URL ?? "https://api.groq.com/openai/v1",
-				process.env.AI_STRICT_SCHEMA !== "false",
+				settings.apiKey,
+				settings.model,
+				settings.baseUrl ?? "https://api.groq.com/openai/v1",
+				settings.strictSchema,
 			);
-		default:
-			throw new Error(`Unsupported AI_PROVIDER: ${name}`);
+		case "openai":
+			return new OpenAICompatibleProvider(
+				"openai",
+				settings.apiKey,
+				settings.model,
+				"https://api.openai.com/v1",
+				settings.strictSchema,
+			);
+		case "anthropic":
+			return new AnthropicProvider(settings.apiKey, settings.model);
 	}
 }
 
 /** Every caller gets a provider wrapped with the rate limiter. */
-export function getProvider(): AIProvider {
-	return paceProvider(createBaseProvider());
+export async function getProvider(userId: string): Promise<AIProvider> {
+	return paceProvider(await createBaseProvider(userId));
 }

@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { redactSecrets } from "@/lib/security/redact";
+import { getEmbeddingApiKey } from "@/lib/ai/user-settings";
 
 export const EMBEDDING_MODEL = "gemini-embedding-2";
 export const EMBEDDING_DIMENSIONS = 768;
@@ -12,16 +13,8 @@ export type CodeDocument = {
 	content: string;
 };
 
-function createEmbeddingClient(): GoogleGenAI {
-	const apiKey =
-		process.env.EMBEDDING_API_KEY ??
-		(process.env.AI_PROVIDER === "gemini" ? process.env.AI_API_KEY : undefined);
-	if (!apiKey) {
-		throw new Error(
-			"Set EMBEDDING_API_KEY to a Google AI Studio key (or use AI_PROVIDER=gemini with AI_API_KEY) to index and search code",
-		);
-	}
-	return new GoogleGenAI({ apiKey });
+async function createEmbeddingClient(userId?: string): Promise<GoogleGenAI> {
+	return new GoogleGenAI({ apiKey: await getEmbeddingApiKey(userId) });
 }
 
 function documentText(document: CodeDocument): string {
@@ -46,9 +39,9 @@ function validateVectors(vectors: (number[] | undefined)[], expected: number): n
 }
 
 /** Embeds code chunks in small provider batches; vectors stay aligned with input order. */
-export async function embedCodeDocuments(documents: CodeDocument[]): Promise<number[][]> {
+export async function embedCodeDocuments(documents: CodeDocument[], userId?: string): Promise<number[][]> {
 	if (documents.length === 0) return [];
-	const client = createEmbeddingClient();
+	const client = await createEmbeddingClient(userId);
 	const vectors: number[][] = [];
 	for (let offset = 0; offset < documents.length; offset += EMBEDDING_BATCH_SIZE) {
 		const batch = documents.slice(offset, offset + EMBEDDING_BATCH_SIZE);
@@ -63,8 +56,8 @@ export async function embedCodeDocuments(documents: CodeDocument[]): Promise<num
 }
 
 /** Embeds a natural-language query in the same code-retrieval space as indexed chunks. */
-export async function embedCodeQuery(query: string): Promise<number[]> {
-	const client = createEmbeddingClient();
+export async function embedCodeQuery(query: string, userId?: string): Promise<number[]> {
+	const client = await createEmbeddingClient(userId);
 	const clean = redactSecrets(query).text;
 	const result = await client.models.embedContent({
 		model: EMBEDDING_MODEL,

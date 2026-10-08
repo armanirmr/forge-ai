@@ -228,7 +228,7 @@ export async function startCodeGeneration(
 			reference: referenceFiles.map((f) => f.path),
 		});
 
-		const provider = getProvider();
+		const provider = await getProvider(userId);
 		const result = await runAgent(
 			codeGenerator,
 			{
