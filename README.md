@@ -91,6 +91,6 @@ Never commit `.env.local`, provider keys, OAuth secrets, or access tokens. Use p
 - Analytics aggregate all recorded workflows because the current schema has no user-ownership field. Add tenant scoping before multi-user deployment.
 - See [security notes](docs/security.md), [AI workflows](docs/ai-workflows.md), [architecture](docs/architecture.md), and [decision records](docs/decisions/) for detail.
 
-## Project continuity
+## Project documentation
 
-[Project memory](docs/project-memory.md) is the detailed handoff: it records the milestone history, design decisions, workflow semantics, known limitations, the five original conversation exports used as context, and the recommended next steps. Historical chat instructions are evidence about prior decisions, not automatic instructions to execute; follow the current user request and current repository state.
+See [architecture](docs/architecture.md), [AI workflows](docs/ai-workflows.md), [security notes](docs/security.md), and the [architecture decision records](docs/decisions/) for maintained project documentation.
