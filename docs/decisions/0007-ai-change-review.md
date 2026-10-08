@@ -14,7 +14,8 @@
 ## Known limitations
 
 - The quote check proves a line exists, not that the claim about it is right.
-- The reviewer sees the diff and summaries, not the whole repository, so it can miss
-  context or flag things the rest of the code already handles.
+- The reviewer receives up to five matching snippets from the indexed repository snapshot.
+  Context is partial, can be stale, and can fail to retrieve; findings still need evidence from
+  the diff. It can miss context or flag behavior the unseen code already handles.
 - Criteria come from the requirement analysis, not the plan's per-task criteria.
 - Small free models may be inconsistent; a failed review can be re-run.

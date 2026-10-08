@@ -24,6 +24,17 @@ const input = {
 	constraints: [],
 	tasks: [],
 	verification: { status: "passed", steps: [], skipped: [] },
+	repositoryContext: {
+		status: "available",
+		snippets: [
+			{
+				path: "src/service.ts",
+				startLine: 1,
+				endLine: 1,
+				content: "export function existingService() {}",
+			},
+		],
+	},
 	flags: [],
 	repairCount: 0,
 	files: [

@@ -16,6 +16,7 @@ import {
 	workflows,
 } from "@/lib/db/schema";
 import { buildReviewDiff } from "@/lib/review/diff-text";
+import { retrieveContext } from "@/lib/repository/retrieve";
 import { redactSecrets } from "@/lib/security/redact";
 import { VerificationResultSchema } from "@/lib/verify/types";
 import { loadReview } from "./review-changes";
@@ -23,6 +24,8 @@ import { logEvent } from "./verify-changes";
 
 /** Lower this if the provider rejects the request as too large for its token limit. */
 const MAX_REVIEW_DIFF_CHARS = 14_000;
+const MAX_REVIEW_CONTEXT_CHARS = 6_000;
+const MAX_REVIEW_CONTEXT_SNIPPETS = 5;
 const MAX_CRITERIA = 12;
 const REVIEWABLE_STATUSES = [
 	"changes_generated",
@@ -78,6 +81,9 @@ export async function startAiReview(
 
 	let editsHash = "";
 	let aiRunId: string | null = null;
+	let repositoryContextStatus: ChangeReviewInput["repositoryContext"]["status"] =
+		"not_attempted";
+	let repositoryContextSnippets = 0;
 	try {
 		const review = await loadReview(workflowId, wf.repositoryId, wf.status);
 		editsHash = review.editsHash;
@@ -138,6 +144,44 @@ export async function startAiReview(
 		}
 
 		const clean = (s: string) => redactSecrets(s).text;
+		let repositoryContext: ChangeReviewInput["repositoryContext"] = {
+			status: "unavailable",
+			snippets: [],
+		};
+		repositoryContextStatus = "unavailable";
+		try {
+			const context = await retrieveContext(
+				wf.repositoryId,
+				[
+					wf.requirement,
+					...analysis.data.acceptanceCriteria,
+					"Existing implementation and test coverage relevant to this change",
+				].join("\n").slice(0, 7000),
+				{ limit: MAX_REVIEW_CONTEXT_SNIPPETS, maxTreeEntries: 0 },
+			);
+			let remaining = MAX_REVIEW_CONTEXT_CHARS;
+			const snippets = context.snippets.flatMap((snippet) => {
+				if (remaining <= 0) return [];
+				const content = clean(snippet.content).slice(0, remaining);
+				remaining -= content.length;
+				return content
+					? [{
+							path: snippet.path,
+							startLine: snippet.startLine,
+							endLine: snippet.endLine,
+							content,
+						}]
+					: [];
+			});
+		repositoryContext = {
+				status: snippets.length > 0 ? "available" : "empty",
+				snippets,
+			};
+			repositoryContextStatus = repositoryContext.status;
+			repositoryContextSnippets = snippets.length;
+		} catch {
+			// Repository retrieval is best effort; the diff review can still proceed.
+		}
 		const input: ChangeReviewInput = {
 			requirement: clean(wf.requirement),
 			repository: {
@@ -170,6 +214,7 @@ export async function startAiReview(
 				})),
 				skipped: verification.data.skipped,
 			},
+			repositoryContext,
 			flags: review.flags,
 			repairCount: review.repairCount,
 			files: diff.files,
@@ -196,6 +241,8 @@ export async function startAiReview(
 			{
 				editsHash,
 				findings: agentResult.output.findings.length,
+				repositoryContext: repositoryContextStatus,
+				repositoryContextSnippets,
 			},
 		);
 	} catch (err) {
@@ -213,6 +260,8 @@ export async function startAiReview(
 		}
 		await logEvent(workflowId, "AI_REVIEW_FAILED", "system", {
 			error: message,
+			repositoryContext: repositoryContextStatus,
+			repositoryContextSnippets,
 		});
 	}
 }

@@ -45,6 +45,19 @@ export const ChangeReviewInputSchema = z.object({
 		),
 		skipped: z.array(z.object({ name: z.string(), reason: z.string() })),
 	}),
+	repositoryContext: z.object({
+		status: z.enum(["not_attempted", "available", "empty", "unavailable"]),
+		snippets: z
+			.array(
+				z.object({
+					path: z.string().max(1000),
+					startLine: z.number().int().positive(),
+					endLine: z.number().int().positive(),
+					content: z.string().max(6000),
+				}),
+			)
+			.max(5),
+	}),
 	flags: z.array(
 		z.object({ level: z.enum(["warn", "info"]), message: z.string() }),
 	),

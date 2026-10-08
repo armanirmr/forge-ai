@@ -73,9 +73,10 @@ export async function AiReviewBlock({
             {promptOutdated ? "Rerun with updated prompt" : "Run AI review"}
           </Button>
           <p className="text-xs text-muted-foreground">
-            Sends the requirement, analysis, plan tasks, verification summary and the diff (secret-redacted)
-            to the configured AI provider in one request. It is an opinion: it cannot approve, reject or
-            block anything.
+            Retrieves relevant snippets from the indexed repository, then sends them with the requirement,
+            analysis, plan tasks, verification summary and diff (secret-redacted) to the configured AI
+            provider. Repository context is limited and best effort. This review is an opinion: it cannot
+            approve, reject or block anything.
           </p>
         </form>
       )}

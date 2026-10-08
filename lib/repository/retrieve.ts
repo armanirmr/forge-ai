@@ -36,7 +36,7 @@ const STOPWORDS = new Set([
 	"its",
 ]);
 
-/** Crude English keyword extraction. Embeddings replace this in Phase 3. */
+/** Crude English keyword extraction used alongside semantic retrieval. */
 export function extractKeywords(text: string, max = 12): string[] {
 	const seen = new Set<string>();
 	const out: string[] = [];
