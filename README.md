@@ -4,7 +4,7 @@ An AI-assisted software delivery tool: it turns a requirement into a validated a
 
 ## Status
 
-Milestones 5B and 6 are complete; the public-repository PR flow was validated with a merged PR. Phase 3 Repository Intelligence is complete: Gemini Embedding 2, pgvector storage, hybrid semantic and keyword retrieval, and repository search. Phase 9 Code Reviewer adds limited context from the indexed repository to the advisory diff review. Existing repositories must be re-indexed after applying migrations.
+Milestones 5B and 6 are complete; the public-repository PR flow was validated with a merged PR. Phase 3 Repository Intelligence is complete: Gemini Embedding 2, pgvector storage, hybrid semantic and keyword retrieval, and repository search. Phase 9 Reviews provide advisory security, code, and architecture findings using the final diff and limited indexed repository context. Phase 12 Analytics summarizes AI usage, tokens, repairs, tests, workflow duration, and approval outcomes. Existing repositories must be re-indexed after applying migrations.
 
 ## Stack
 

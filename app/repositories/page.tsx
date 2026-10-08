@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
 import { listOwnedRepos } from "@/lib/github/client";
@@ -28,9 +29,12 @@ export default async function RepositoriesPage({
     <main className="mx-auto max-w-3xl space-y-6 p-8">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Repositories</h1>
-        <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
-          <Button variant="outline" size="sm" type="submit">Sign out</Button>
-        </form>
+        <div className="flex items-center gap-2">
+          <Link href="/analytics" className="rounded border px-3 py-1.5 text-sm">Analytics</Link>
+          <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
+            <Button variant="outline" size="sm" type="submit">Sign out</Button>
+          </form>
+        </div>
       </header>
 
       {(error || listError) && (
