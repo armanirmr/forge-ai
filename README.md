@@ -60,6 +60,16 @@ Prerequisites: Node.js/npm, Docker Desktop, a GitHub OAuth application, and an A
 
 Never commit `.env.local`, provider keys, OAuth secrets, or access tokens. Use public or throwaway repositories when experimenting with free-tier AI providers; provider privacy and quotas vary.
 
+## Cloudflare Workers deployment
+
+This repository is configured for Cloudflare Workers through the OpenNext adapter. Use Node.js 22.12 or later. For a local Worker-runtime preview, run `npm run preview:worker`; to build and deploy from a logged-in workstation, run `npm run deploy:worker`.
+
+For Cloudflare Workers Builds, use `npx opennextjs-cloudflare build` as the build command and `npx opennextjs-cloudflare deploy -- --keep-vars` as the deploy command. The Worker uses the `HYPERDRIVE` binding in `wrangler.jsonc` for production database access; do not set or commit `DATABASE_URL` in Cloudflare. For local `db:migrate` and regular Node.js development, use `DATABASE_URL` for a development database. OpenNext builds and Worker previews also need `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` set to a development database URL so Wrangler can emulate the `HYPERDRIVE` binding locally. Configure `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `NEXTAUTH_SECRET`, and `NEXTAUTH_URL` under the Worker project's **Settings > Variables and Secrets** for production and preview; use encrypted secrets for credentials. Add `AI_PROVIDER`, `AI_API_KEY`, `AI_MODEL`, and `EMBEDDING_API_KEY` only if using server-wide AI defaults. Do not put secrets in `wrangler.jsonc` or commit them.
+
+The production database must be reachable from Cloudflare Workers and support pgvector. Hyperdrive handles database connection pooling, and the database client is scoped to each Worker request. The local Docker URL in `.env.example` is for development only. Apply migrations to the production database with `npm run db:migrate` before using the app. The database module initializes on first query, so database credentials are not needed just to import routes during Next.js build.
+
+**Runtime limitation:** generated-change verification currently launches the Docker CLI through `node:child_process`. Cloudflare Workers cannot launch Docker, so that workflow stage needs a separate Node.js/Docker verification service or a Cloudflare Containers integration before the full workflow can be used in production. A successful Worker build alone does not make Docker verification available.
+
 ## AI provider configuration
 
 `lib/ai/config.ts` supports Gemini, Groq, OpenAI, and Anthropic for chat. Groq and OpenAI use the OpenAI-compatible adapter; Anthropic uses its Messages API with structured JSON outputs. Signed-in users can save their chat provider, model, and API key at `/settings`; account settings override the optional server defaults below. ChatGPT subscriptions do not include OpenAI API usage, which has separate API billing. Strict schema output can be disabled for compatible providers with `AI_STRICT_SCHEMA=false`; application validation always remains enabled. Repository imports and semantic search always use Gemini Embedding 2, so Groq, OpenAI, and Anthropic users need a Google AI Studio embedding key unless the server has one configured. A Gemini chat key can be reused for embeddings. Credentials saved in the UI are encrypted at rest; see [security notes](docs/security.md).
