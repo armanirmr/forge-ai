@@ -4,6 +4,8 @@ import { stableUserSubject } from "@/lib/auth/identity";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
 	secret: process.env.NEXTAUTH_SECRET,
+	// Cloudflare Workers are not automatically recognized by Auth.js as a trusted host.
+	trustHost: true,
 	providers: [
 		GitHub({
 			clientId: process.env.GITHUB_CLIENT_ID,
