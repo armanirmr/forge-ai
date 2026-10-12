@@ -5,6 +5,7 @@ import { auth, signIn } from "@/auth";
 import { WelcomeWorkflow } from "@/components/welcome-workflow";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BrandMark } from "@/components/brand-mark";
 
 export default async function Home() {
 	const session = await auth();
@@ -15,8 +16,8 @@ export default async function Home() {
 			<div className="welcome-atmosphere" aria-hidden="true" />
 			<header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-5 py-5 sm:px-8 sm:py-7">
 				<Link href="/" aria-label="Changeweft home" className="inline-flex items-center gap-2.5 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-					<span aria-hidden="true" className="grid size-9 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">C</span>
-					<span className="text-lg font-semibold tracking-tight">Changeweft</span>
+					<BrandMark />
+					<span className="font-heading text-lg font-semibold tracking-tight">Changeweft</span>
 				</Link>
 				<ThemeToggle />
 			</header>
